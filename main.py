@@ -10,3 +10,19 @@
 # license for the specific language governing permissions and limitations under 
 # the License.
 
+import lcdmpc as opt
+
+tmp = opt.LCDMPC()
+
+A = 1
+B = 2
+C = 3
+D = 4
+
+inputs = [1,2,3]
+outpus = [4,5]
+ID = 'building 1'
+
+tmp.build_subsystem(A, B, C, D, inputs, outpus, ID=ID)
+
+print(tmp.subsystems[0].ID)
