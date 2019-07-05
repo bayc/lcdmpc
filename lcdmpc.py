@@ -16,7 +16,7 @@ class LCDMPC():
 
     def build_subsystem(self, A, B, C, D, inputs, outputs, ID=None):
         # create subsystem object
-        subsys = subsystem(self, A, B, C, D, inputs, outputs, ID)
+        subsys = subsystem(self, A, B, C, D, inputs, outputs, ID=ID)
         # append it to subsystem list
         self.subsystems.append(subsys)
         
@@ -42,9 +42,6 @@ class LCDMPC():
         # interconnection matrix
         pass
 
-    def set_opt_bounds(self):
-        pass
-
 class subsystem():
     def __init__(self, obj, A, B, C, D, inputs, outputs, upstream=None, downstream=None, ID=None):
         self.A = A
@@ -66,5 +63,23 @@ class subsystem():
         else:
             self.ID = str(len(obj.subsystems) + 1)
 
-    def optimize():
+    def set_opt_bounds(self):
         pass
+
+    def optimize(self):
+        pass
+
+    def obj_func(self, control):
+        # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
+        self.U = control
+        return np.transpose(self.U)*self.H*self.U + 2*np.transpose(self.U)*F + np.transpose(self.V)*self.E*self.V + 2*np.transpose(self.V)*self.T
+
+    def update(self):
+        self.H = np.transpose(self.My)*self.Q*self.My + self.S
+        self.E_1 = self.E
+        self.E = np.transpose(self.Ny)*self.Q*self.Ny
+        self.F = np.transpose(self.My)*self.Q*(self.Fy*self.x0 + self.Ny*self.V - self.ref) + 0.5*np.transpose(self.Mz)*self.psi
+        self.T = np.transpose(self.Ny)*self.Q*(self.Fy*self.x0 - self.ref) + 0.5*np.transpose(self.Nz)*self.psi
+
+    def calc_sens(self):
+        self.gamma = 2*(self.E_1*self.V + self.T + np.transpose(self.Ny)*self.Q*self.My*self.U)

@@ -20,9 +20,11 @@ C = 3
 D = 4
 
 inputs = [1,2,3]
-outpus = [4,5]
+outputs = [4,5]
 ID = 'building 1'
 
-tmp.build_subsystem(A, B, C, D, inputs, outpus, ID=ID)
+tmp.build_subsystem(A, B, C, D, inputs, outputs, ID=ID)
+tmp.build_subsystem(A, B, C, D, inputs, outputs, ID='building 2')
 
 print(tmp.subsystems[0].ID)
+print(tmp.subsystems[1].ID)
