@@ -45,19 +45,38 @@ Dy = np.array([[0, 2], [0, 0]])
 Dz = np.array([[1, 2], [1, 0]])
 
 inputs = [1,2,3]
-outputs = [4,5]
+outputs1 = [4,5]
+outputs2 = [55, 77]
 ID = 'building 1'
 
-tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, inputs, outputs, horiz_len)
-tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, inputs, outputs, horiz_len)
+tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, inputs, outputs1, horiz_len)
+tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, inputs, outputs2, horiz_len)
 
 tmp.subsystems[0].sys_matrices()
 
+connections = [[0, 1], [1, 0]]
+
+tmp.build_interconnections(interconnections=connections)
+
 np.set_printoptions(suppress=True)
+
+tmp.update_outputs()
+tmp.communicate()
+
+print(tmp.subsystems[0].v)
+print(tmp.subsystems[1].v)
+
+# print(tmp.subsystems[0].nodeID)
+# print(tmp.subsystems[0].downstream)
+# print(tmp.subsystems[0].upstream)
+
+# print(tmp.subsystems[1].nodeID)
+# print(tmp.subsystems[1].downstream)
+# print(tmp.subsystems[1].upstream)
 
 # print(np.array(tmp.subsystems[0].Fy))
 # print(np.array(tmp.subsystems[0].Fz))
-print(tmp.subsystems[0].Nz)
+# print(tmp.subsystems[0].Nz)
 
 # print(tmp.subsystems[0].nodeID)
 # print(tmp.subsystems[1].nodeID)

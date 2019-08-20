@@ -31,9 +31,6 @@ class LCDMPC():
         # call optimize and calculate horizon
         pass
 
-    def calculate_horizon(self):
-        pass
-
     def optimize(self):
         pass
 
@@ -44,10 +41,35 @@ class LCDMPC():
         # simulate the real-world model
         pass
 
-    def build_interconnections(self):
-        # accept inteconnections from subsystems and setup 
-        # interconnection matrix
-        pass
+    def build_interconnections(self, interconnections):
+        """
+        Accept inteconnections from subsystems and setup 
+        interconnection. matrix
+        
+        Args:
+            interconnections (list): A list of tuples containing the 
+                upstream and downstream nodeIds.
+        """
+        for pair in interconnections:
+            up = pair[0]
+            down = pair[1]
+
+            self.subsystems[up].downstream.append(down)
+            self.subsystems[down].upstream.append(up)
+
+    def update_outputs(self):
+        """
+        Update the z vectors of the subsystems.
+        """
+        for subsys in self.subsystems:
+            subsys.update_z()
+
+    def communicate(self):
+        """
+        Exchange information between subsystems.
+        """
+        for subsys in self.subsystems:
+            subsys.update_v(self)
 
 class subsystem():
     def __init__(self, obj, A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, 
@@ -75,13 +97,20 @@ class subsystem():
         if nodeID is not None:
             self.nodeID = nodeID
         else:
-            self.nodeID = str(len(obj.subsystems) + 1)
+            self.nodeID = str(len(obj.subsystems))
         if nodeName is not None:
             self.nodeName = nodeName
         else:
-            self.nodeName = 'Node ' + str(len(obj.subsystems) + 1)
+            self.nodeName = 'Node ' + str(len(obj.subsystems))
 
         self.mat_sizes()
+        self.u = []
+        self.v = []
+        self.y = []
+        self.z = []
+
+    def calculate_horizon(self):
+        pass
 
     def set_opt_bounds(self, low, high):
         pass
@@ -108,6 +137,13 @@ class subsystem():
     def calc_sens(self):
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \
                    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.U))
+
+    def update_v(self, obj):
+        for upstream in self.upstream:
+            self.v = obj.subsystems[upstream].z
+
+    def update_z(self):
+        self.z = self.outputs
 
     def sys_matrices(self):       
         self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
