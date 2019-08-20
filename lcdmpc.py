@@ -104,6 +104,7 @@ class subsystem():
             self.nodeName = 'Node ' + str(len(obj.subsystems))
 
         self.mat_sizes()
+        self.x = []
         self.u = []
         self.v = []
         self.y = []
@@ -138,12 +139,25 @@ class subsystem():
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \
                    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.U))
 
+    def update_subsys(self):
+        self.update_x()
+        self.update_y()
+        self.update_z()
+
     def update_v(self, obj):
         for upstream in self.upstream:
             self.v = obj.subsystems[upstream].z
 
+    def update_x(self):
+        self.x = dot(self.A, self.x) + dot(self.Bu, self.u) \
+            + dot(self.Bv, self.v) + dot(self.Bd, self.d)
+
+    def update_y(self):
+        self.y = dot(self.Cy, self.x) + dot(self.Dy, self.u)
+
     def update_z(self):
-        self.z = self.outputs
+        self.z = dot(self.Fz, self.x) + dot(self.Mz, self.u) \
+            + dot(self.Nz, self.v)
 
     def sys_matrices(self):       
         self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
