@@ -19,10 +19,10 @@ class LCDMPC():
     def __init__(self):
         self.subsystems = []
 
-    def build_subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, inputs, outputs, 
+    def build_subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, outputs, 
                         horiz_len, nodeID=None, nodeName=None):
         # create subsystem object
-        subsys = subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, inputs, \
+        subsys = subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, \
             outputs, horiz_len, nodeID=nodeID, nodeName=nodeName)
         # append it to subsystem list
         self.subsystems.append(subsys)
@@ -72,7 +72,7 @@ class LCDMPC():
             subsys.update_v(self)
 
 class subsystem():
-    def __init__(self, obj, A, Bu, Bv, Bd, Cy, Cz, Dy, Dz, 
+    def __init__(self, obj, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
                  inputs, outputs, horiz_len, upstream=None, 
                  downstream=None, nodeID=None, nodeName=None):
         self.A = A
@@ -81,8 +81,10 @@ class subsystem():
         self.Bd = Bd
         self.Cy = Cy
         self.Cz = Cz
-        self.Dy = Dy
-        self.Dz = Dz
+        self.Dyu = Dyu
+        self.Dyv = Dyv
+        self.Dzu = Dzu
+        self.Dzv = Dzv
         self.inputs = inputs
         self.outputs = outputs
         self.horiz_len = horiz_len
@@ -117,7 +119,23 @@ class subsystem():
         pass
 
     def optimize(self):
-        pass
+        P_qp = self.H # quadratic term
+        q_qp = self.F # linear term
+        G_qp = TODO
+        h_qp = np.hstack(-1*self.lb, self.ub)
+        self.u = cvxopt_solve_qp(P_qp, q_qp)
+
+    def cvxopt_solve_qp(P, q, G=None, h=None, A=None, b=None):    
+        P = .5 * (P + P.T)  # make sure P is symmetric
+        args = [cvx.matrix(P), cvx.matrix(q)]
+        if G is not None:
+            args.extend([cvx.matrix(G), cvx.matrix(h)])
+            if A is not None:
+                args.extend([cvx.matrix(A), cvx.matrix(b)])
+        sol = cvxopt.solvers.qp(*args)
+        if 'optimal' not in sol['status']:
+            return None
+        return np.array(sol['x']).reshape((P.shape[1],))
 
     def obj_func(self, control):
         # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
@@ -153,7 +171,8 @@ class subsystem():
             + dot(self.Bv, self.v) + dot(self.Bd, self.d)
 
     def update_y(self):
-        self.y = dot(self.Cy, self.x) + dot(self.Dy, self.u)
+        self.y = dot(self.Cy, self.x) + dot(self.Dyu, self.u) \
+            + dot(self.Dyv, self.v)
 
     def update_z(self):
         self.z = dot(self.Fz, self.x) + dot(self.Mz, self.u) \
@@ -174,9 +193,27 @@ class subsystem():
         else:
             self.Fz = np.concatenate(self.Fz)
 
+        # Mytmp = dot(self.Cy, self.Bu)
+        # MytmpShape = np.shape(Mytmp)
+        # for i in range(self.horiz_len - 1):
+        #     Mytmp = np.hstack((Mytmp, np.zeros(MytmpShape)))
+        # for i in range(1, self.horiz_len):
+        #     if Mytmp.ndim == 1:
+        #         Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
+        #             dot(matpower(self.A, i), self.Bu )), Mytmp[:-self.nyBu]))))
+        #     else:
+        #         if dot(self.Cy, dot(matpower(self.A, i), self.Bu )).ndim == 1:
+        #             Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
+        #                 dot(matpower(self.A, i), self.Bu )), Mytmp[-self.nxCy:,:-self.nyBu][0]))))
+        #         else:
+        #             Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
+        #                 dot(matpower(self.A, i), self.Bu )), Mytmp[-self.nxCy:,:-self.nyBu]))))
+        # self.My = Mytmp
+
         Mytmp = dot(self.Cy, self.Bu)
         MytmpShape = np.shape(Mytmp)
-        for i in range(self.horiz_len - 1):
+        Mytmp = np.hstack((Mytmp, self.Dyu))
+        for i in range(self.horiz_len - 2):
             Mytmp = np.hstack((Mytmp, np.zeros(MytmpShape)))
         for i in range(1, self.horiz_len):
             if Mytmp.ndim == 1:
@@ -191,7 +228,7 @@ class subsystem():
                         dot(matpower(self.A, i), self.Bu )), Mytmp[-self.nxCy:,:-self.nyBu]))))
         self.My = Mytmp
 
-        Mztmp0 = self.Dz
+        Mztmp0 = self.Dzu
         Mztmp0Shape = np.shape(Mztmp0)
         Mztmp = np.hstack((dot(self.Cz, self.Bu), Mztmp0))
         for i in range(self.horiz_len - 1):
@@ -211,7 +248,8 @@ class subsystem():
                     Mztmp = np.vstack((Mztmp, np.hstack((dot(self.Cz, \
                         dot(matpower(self.A, i), self.Bu )), Mztmp[-self.nxCz:,:-self.nyBu]))))
         self.Mz = Mztmp
-        
+
+        # TODO: need to update with Dyv
         Nytmp = dot(self.Cy, self.Bv)
         NytmpShape = np.shape(Nytmp)
         for i in range(self.horiz_len - 1):
@@ -228,7 +266,7 @@ class subsystem():
                     Nytmp = np.vstack((Nytmp, np.hstack((dot(self.Cy, \
                         dot(matpower(self.A, i), self.Bv )), Nytmp[-self.nxCy:,:-self.nyBv]))))
         self.Ny = Nytmp
-        
+
         Nztmp = dot(self.Cz, self.Bv)
         NztmpShape = np.shape(Nztmp)
         for i in range(self.horiz_len - 1):
@@ -266,7 +304,7 @@ class subsystem():
             self.nyBu = np.shape(self.Bu)[1]
         else:
             raise Exception("The 'Bu' matrix has > 2 dimensions")
-        
+
         if self.Bv.ndim == 1:
             self.nxBv = 1
             self.nyBv = 0
@@ -303,20 +341,20 @@ class subsystem():
         else:
             raise Exception("The 'Cz' matrix has > 2 dimensions")
 
-        if self.Dy.ndim == 1:
-            self.nxDy = 1
-            self.nyDy = 0
-        elif self.Dy.ndim == 2:
-            self.nxDy = np.shape(self.Dy)[0]
-            self.nyDy = np.shape(self.Dy)[1]
-        else:
-            raise Exception("The 'Dy' matrix has > 2 dimensions")
+        # if self.Dy.ndim == 1:
+        #     self.nxDy = 1
+        #     self.nyDy = 0
+        # elif self.Dy.ndim == 2:
+        #     self.nxDy = np.shape(self.Dy)[0]
+        #     self.nyDy = np.shape(self.Dy)[1]
+        # else:
+        #     raise Exception("The 'Dy' matrix has > 2 dimensions")
 
-        if self.Dz.ndim == 1:
-            self.nxDz = 1
-            self.nyDz = 0
-        elif self.Dz.ndim == 2:
-            self.nxDz = np.shape(self.Dz)[0]
-            self.nyDz = np.shape(self.Dz)[1]
-        else:
-            raise Exception("The 'Dz' matrix has > 2 dimensions")
+        # if self.Dz.ndim == 1:
+        #     self.nxDz = 1
+        #     self.nyDz = 0
+        # elif self.Dz.ndim == 2:
+        #     self.nxDz = np.shape(self.Dz)[0]
+        #     self.nyDz = np.shape(self.Dz)[1]
+        # else:
+        #     raise Exception("The 'Dz' matrix has > 2 dimensions")
