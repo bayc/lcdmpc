@@ -1,0 +1,11 @@
+# OpenDSS outputs
+*.txt
+*.CSV
+!/tests/data/13Bus/*.csv
+!/tests/data/4Bus/*.csv
+
+# Whatever this is
+.DS_Store
+
+# Folders
+__pycache__/
