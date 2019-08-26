@@ -20,10 +20,10 @@ class LCDMPC():
         self.subsystems = []
 
     def build_subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, outputs, 
-                        horiz_len, nodeID=None, nodeName=None):
+                        horiz_len, K=None, nodeID=None, nodeName=None):
         # create subsystem object
         subsys = subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, \
-            outputs, horiz_len, nodeID=nodeID, nodeName=nodeName)
+            outputs, horiz_len, K=K, nodeID=nodeID, nodeName=nodeName)
         # append it to subsystem list
         self.subsystems.append(subsys)
         
@@ -54,8 +54,10 @@ class LCDMPC():
             up = pair[0]
             down = pair[1]
 
-            self.subsystems[up].downstream.append(down)
-            self.subsystems[down].upstream.append(up)
+            # self.subsystems[up].downstream.append(down)
+            # self.subsystems[down].upstream.append(up)
+            next((x for x in self.subsystems if x.nodeID == up)).downstream.append(down)
+            next((x for x in self.subsystems if x.nodeID == down)).upstream.append(up)
 
     def update_outputs(self):
         """
@@ -73,7 +75,7 @@ class LCDMPC():
 
 class subsystem():
     def __init__(self, obj, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
-                 inputs, outputs, horiz_len, upstream=None, 
+                 inputs, outputs, horiz_len, K=None, upstream=None, 
                  downstream=None, nodeID=None, nodeName=None):
         self.A = A
         self.Bu = Bu
@@ -88,6 +90,10 @@ class subsystem():
         self.inputs = inputs
         self.outputs = outputs
         self.horiz_len = horiz_len
+        if K is not None:
+            self.K = K
+        else:
+            self.K = []
         if upstream is not None:
             self.upstream = upstream
         else:
@@ -164,7 +170,8 @@ class subsystem():
 
     def update_v(self, obj):
         for upstream in self.upstream:
-            self.v = obj.subsystems[upstream].z
+            # self.v = obj.subsystems[upstream].z
+            self.v = next((x for x in obj.subsystems if x.nodeID == upstream)).z
 
     def update_x(self):
         self.x = dot(self.A, self.x) + dot(self.Bu, self.u) \

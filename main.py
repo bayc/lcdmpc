@@ -49,22 +49,50 @@ outputs1 = [4,5]
 outputs2 = [55, 77]
 ID = 'building 1'
 
-tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, outputs1, horiz_len)
-tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, outputs2, horiz_len)
+tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, \
+                    Dyu, Dyv, Dzu, Dzv, \
+                    inputs, outputs1, horiz_len, nodeID=632)
+tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, \
+                    Dyu, Dyv, Dzu, Dzv, \
+                    inputs, outputs2, horiz_len, nodeID=645)
 
 tmp.subsystems[0].sys_matrices()
 
-connections = [[0, 1], [1, 0]]
+# connections = [[0, 1], [1, 0]]
+connections =[[632, 645]]#,
+            #   [632, 633],
+            #   [632, 671],
+            #   [646, 645],
+            #   [645, 646],
+            #   [645, 632],
+            #   [634, 633],
+            #   [633, 634],
+            #   [633, 632],
+            #   [671, 632],
+            #   [671, 684],
+            #   [671, 692],
+            #   [671, 680],
+            #   [611, 684],
+            #   [684, 611],
+            #   [684, 652],
+            #   [684, 671],
+            #   [652, 684],
+            #   [675, 692],
+            #   [692, 675],
+            #   [692, 671],
+            #   [680, 671]]
 
 tmp.build_interconnections(interconnections=connections)
+
+print(tmp.subsystems[0].downstream)
 
 np.set_printoptions(suppress=True)
 
 # tmp.update_outputs()
-# tmp.communicate()
+tmp.communicate()
 
 # print(tmp.subsystems[0].v)
-# print(tmp.subsystems[1].v)
+print(tmp.subsystems[1].v)
 
 # print(tmp.subsystems[0].nodeID)
 # print(tmp.subsystems[0].downstream)
@@ -76,7 +104,7 @@ np.set_printoptions(suppress=True)
 
 # print(np.array(tmp.subsystems[0].Fy))
 # print(np.array(tmp.subsystems[0].Fz))
-print(tmp.subsystems[0].My)
+# print(tmp.subsystems[0].My)
 
 # print(tmp.subsystems[0].nodeID)
 # print(tmp.subsystems[1].nodeID)
