@@ -52,7 +52,7 @@ def single_phase_equivalent(admittance_matrix_3phase):
     
     return admittance_matrix_3phase[keep_rows,:][:,keep_rows]
 
-def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin, v_0=1+0j):
+def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin):
     """
     Construct inverse linearized PFE of form v' = As' + b.
     
@@ -60,21 +60,23 @@ def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin, v_0=1+0j):
         admittance_matrix - (N+1)x(N+1) array of complex - system 
                                                            admittance
                                                            matrix
-        s_lin - Nx1 array of complex - nodal complex powers to linearize
-                                       about (at `load' nodes)
-        v_lin - Nx1 array of complex - nodal voltage to linearize about
-                                       (at `load' nodes)
-        v_0 - complex - voltage at the slack bus (defaults to per unit)
+        s_lin - (N+1)x1 array of complex - nodal complex powers to 
+                                           linearize about (at all 
+                                           nodes)
+        v_lin - (N+1)x1 array of complex - nodal complex voltage to 
+                                           linearize about (at all 
+                                           nodes)
     Outputs:
-        A - 2Nx2N array of real - constraint system matrix
-        b - 2Nx1 array of real - constraint affine term
+        A - 2Nx2N array of real - (real) constraint system matrix
+        b - 2Nx1 array of real - (real) constraint affine term
     """ 
 
-    Jac_s = construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0)
+    Jac_s = full_power_flow_Jacobian(admittance_matrix, v_lin)
+    v_prime = np.concatenate([np.real(v_lin), np.imag(v_lin)])
+    s_prime = np.concatenate([np.real(s_lin), np.imag(s_lin)])
     
     A = np.linalg.inv(Jac_s)
-
-    b = -A @ s_lin + v_lin
+    b = -A @ s_prime + v_prime
 
     return A, b
 
@@ -109,6 +111,55 @@ def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
     Jac_s = -Jac_f_v
     
     return Jac_s
+
+def full_power_flow_Jacobian(admittance_matrix, v_lin):
+    """
+    Get Jacobian for use in linearized PFE for all nodes.
+
+    Inputs:
+        admittance_matrix - (N+1)x(N+1) array of complex - system 
+                                                           admittance
+                                                           matrix
+        v_lin - (N+1)x1 array of complex - nodal voltage to linearize 
+                                           about (at all nodes)
+    Outputs:
+        Jac_s - 2(N+1)x2(N+1) array of real - system Jacobian matrix
+    """
+
+    Y_prime = _build_Y_prime(admittance_matrix)
+    v_prime = np.concatenate([np.real(v_lin), np.imag(v_lin)])
+    
+    N = int(round(np.shape(Y_prime)[0]/2)) - 1
+    Jac = np.zeros([2*(N+1), 2*(N+1)])
+    
+    for k in range(N+1):
+        for m in range(N+1):
+            if m == k:
+                kronecker_delta = 1
+            else:
+                kronecker_delta = 0
+                      
+            # Top left (R,R)
+            Jac[k,m] =  (v_prime[k][0] * Y_prime[k,m] + \
+                         v_prime[N+1+k][0] * Y_prime[N+1+k,m]) \
+                        + kronecker_delta * (Y_prime[k,:] @ v_prime)                       
+            
+            # Top right (R,I)
+            Jac[k,N+1+m] = (v_prime[N+1+k][0] * Y_prime[N+1+k,N+1+m] + \
+                            v_prime[k][0] * Y_prime[k,N+1+m]) \
+                           + kronecker_delta * (Y_prime[N+1+k,:] @ v_prime)
+            
+            # Bottom left (I,R)
+            Jac[N+1+k,m] = (v_prime[N+1+k][0] * Y_prime[k,m] - \
+                            v_prime[k][0] * Y_prime[N+1+k,m]) \
+                           - kronecker_delta * (Y_prime[N+1+k,:] @ v_prime)
+                          
+            # Bottom right (I,I)
+            Jac[N+1+k,N+1+m] = (v_prime[N+1+k][0] * Y_prime[k,N+1+m] - \
+                                v_prime[k][0] * Y_prime[N+1+k,N+1+m]) \
+                               - kronecker_delta * (Y_prime[k,:] @ v_prime)
+
+    return Jac
 
 def power_flow_mismatch_Jacobian(Y_LL_prime, Y_L0_prime, v_prime, v_0_prime):
     """
@@ -146,7 +197,7 @@ def power_flow_mismatch_Jacobian(Y_LL_prime, Y_L0_prime, v_prime, v_0_prime):
                                                Y_L0_prime[N+k,:] @ v_0_prime)
                           
             
-            # Bottomr left (I,R)
+            # Bottom left (I,R)
             Jac[N+k,m] = - (v_prime[N+k][0] * Y_LL_prime[k,m] - \
                             v_prime[k][0] * Y_LL_prime[N+k,m]) \
                           + kronecker_delta * (Y_LL_prime[N+k,:] @ v_prime + \
