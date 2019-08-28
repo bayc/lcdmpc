@@ -9,3 +9,15 @@
 
 # Folders
 __pycache__/
+
+# Latex junk
+*.log
+*.out
+*.aux
+*.pdf
+*.fls
+*.synctex.gz
+*.fdb_latexmk
+
+# Misc.
+*.code-workspace

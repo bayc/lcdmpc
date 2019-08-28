@@ -1,0 +1,185 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1.0in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{tikz}
+\usepackage{circuitikz}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{hyperref}
+\usepackage{tkz-euclide}
+\usepackage{nicefrac}
+\usepackage{changepage}
+\usetikzlibrary{arrows.meta}
+%\usepackage{graphicx}
+%\usepackage{caption}
+%\usepackage{subcaption}
+%\graphicspath{{figures/}}
+%\usepackage{soul}
+%\usepackage{color}
+%\usepackage{array,booktabs}
+%\newcolumntype{M}[1]{>{\centering\arraybackslash}m{#1}}
+%\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\makeatletter
+\def\BState{\State\hskip-\ALG@thistlm}
+\makeatother
+\algnewcommand{\Initialize}[1]{%
+  \State \textbf{initialize:}
+  \Statex \hspace*{\algorithmicindent}\parbox[t]{.8\linewidth}{\raggedright #1}
+}
+
+\newcommand{\smis}{\ensuremath{\tilde{\mathbf{s}}}}
+
+
+\newcommand{\tran}{^{\mathsf{T}}}
+
+% I don't like the mathfrak notation
+\renewcommand{\Re}{\ensuremath{\operatorname{Re}}} 
+\renewcommand{\Im}{\ensuremath{\operatorname{Im}}}
+
+\newcommand{\im}{\ensuremath{^{\mathrm{i}}}}
+\newcommand{\re}{\ensuremath{^{\mathrm{r}}}}
+
+\begin{document}
+	
+I'm using this to record a slightly different technique for linearizing the 
+power flow equations for the purpose of LCDMPC.
+
+In contrast to my notation from other documents, I'll let 
+$\mathbf{s} \in \mathbb{C}^{N+1}$ \emph{include} the slack node complex power, 
+although I'll still say there are $N$ load nodes and one slack node (in the 
+first position of $\mathbf{s}$). Similarly, $\mathbf{v} \in \mathbb{C}^{N+1}$
+includes the slack node voltage. I'll still use the prime notation for the real
+versions of these, so that 
+$\mathbf{s}' \coloneqq \begin{bmatrix} \Re(\mathbf{s})\tran & 
+\Im(\mathbf{s})\tran \end{bmatrix}\tran \in \mathbb{R}^{2(N+1)}$, as with 
+$\mathbf{v}'$.
+
+The complex power flow equation is
+\begin{equation}\label{eq:complex_power_flow}
+    \mathbf{s} = \mathrm{diag}(\mathbf{v})\bar{\mathbf{Y}}\bar{\mathbf{v}}.
+\end{equation}
+where $\mathbf{Y}$ is the system admittance matrix and the real version 
+of this is
+\begin{equation}\label{eq:power_flow_prime}
+    \mathbf{s}' = M(\mathbf{v}')\mathbf{Y}'\mathbf{v}'
+\end{equation}
+where
+$$ \mathbf{Y}' \coloneqq \begin{bmatrix}     
+    \Re(\mathbf{Y}) &
+    -\Im(\mathbf{Y}) \\
+    \Im(\mathbf{Y}) &
+    \Re(\mathbf{Y})\end{bmatrix} $$
+and
+$$ M({\mathbf{v}'}) \coloneqq \begin{bmatrix} 
+    \mathrm{diag}(\Re(\mathbf{v})) &
+    \mathrm{diag}(\Im(\mathbf{v})) \\
+    \mathrm{diag}(\Im(\mathbf{v})) &
+    -\mathrm{diag}(\Re(\mathbf{v}))\end{bmatrix}. $$
+Here, I've used the convention that $\mathrm{diag}(x), x\in\mathbb{R}^n$ is an 
+$n\times n$ real matrix with the elements of $x$ on the lead diagonal and
+zeros elsewhere.
+
+Equation \eqref{eq:power_flow_prime} is nonlinear and so can't be used in a 
+convex MPC formulation. As an approximation, we linearize according to 
+\begin{align}\label{eq:Linearized_power_flow}
+    \mathbf{s}' &\approx \mathbf{s}'_* + 
+                        \left.\frac{\partial \mathbf{s}'}
+                        {\partial \mathbf{v}'}\right\rvert_
+                        {\mathbf{v} = \mathbf{v}'}
+                        \left(\mathbf{v}' - \mathbf{v}_*'\right) \nonumber \\
+                &= \mathbf{s}'_* + \mathbf{J}
+                   \left(\mathbf{v}' - \mathbf{v}_*'\right)\:.
+\end{align}
+where $(\mathbf{s}_*', \mathbf{v}_*')$ are a linearization point that satisfies
+the power flow equation \eqref{eq:power_flow_prime}.
+The derivation of the Jacobian $\mathbf{J}$ is listed in the Appendix.
+
+For the LCDMPC problem, we need Equation~\eqref{eq:Linearized_power_flow} to be
+inverted, so that we have $\mathbf{v}'$ in terms of $\mathbf{s}'$, and we have
+the form 
+\begin{equation}\label{eq:LPFE_voltage}
+    \mathbf{v}' = A\mathbf{s}' + b
+\end{equation}
+Comparing \eqref{eq:Linearized_power_flow} to \eqref{eq:LPFE_voltage}, we see 
+that $A = \mathbf{J}^{-1}$ and 
+$b = -\mathbf{J}^{-1}\mathbf{s}'_* + \mathbf{v}'_*$.
+
+Finally, the MPC algorithm will be deciding on all elements in $\mathbf{s}'$ and
+$\mathbf{v}'$ \emph{except} the complex slack voltage $v_0$, since this 
+represents the voltage at the grid connection. So, we should be 
+including two extra constraints: 
+$\mathbf{v}'_1 = v_{0,\mathrm{grid}}\re$ and 
+$\mathbf{v}'_{N+2} = v_{0,\mathrm{grid}}\im$ at the slack bus, where 
+$v_{0,\mathrm{grid}}\re$ and $v_{0,\mathrm{grid}}\im$ are problem data. 
+Usually, $v_{0,\mathrm{grid}}\im$ is defined as being zero (and all other
+voltage angles are defined based on this).
+
+\section*{Appendix: Power flow equation Jacobian}
+
+Here, for clarity, we use notation
+$y\re_{km} \coloneqq [\mathbf{Y}\re]_{k,m} = 
+\Re([\mathbf{Y}]_{k,m})$ and likewise
+for $y\im_{km}$ (the conductance and susceptance between the $k$th and $m$th
+nodes). Further, let $\mathbf{y}_{k}\tran \in \mathbb{C}^{1\times (N+1)}$ be the
+$k$th row of $\mathbf{Y}$. 
+\emph{Note: this notation relies implicitly on $\mathbf{Y}$ 
+being symmetric. If this is not the case, $\mathbf{y}_{k}\tran$ should be 
+replaced with  $\mathbf{y}_{k:}$ for clarity}. 
+
+The Jacobian matrix of $f(\cdot)$ is split into four types of terms:
+$\frac{\partial {s}\re_k}{\partial {v}\re_m} =
+\frac{\partial {P}_k}{\partial {v}\re_m}$, 
+$\frac{\partial {s}\re_k}{\partial {v}\im_m} =
+\frac{\partial {P}_k}{\partial {v}\im_m}$, 
+$\frac{\partial {s}\im_k}{\partial {v}\re_m} =
+\frac{\partial {Q}_k}{\partial {v}\re_m}$, and
+$\frac{\partial {s}\im_k}{\partial {v}\im_m} =
+\frac{\partial {Q}_k}{\partial {v}\im_m}$. 
+These are found to be
+
+\begin{subequations}\label{eq:Jacobian_derivatives}
+    \begin{align}
+        \frac{\partial {s}\re_k}{\partial {v}\re_m} &= 
+            \left(v_k\re y_{km}\re + v_k\im y_{km}\im\right)
+            + \delta_{km}\left((\mathbf{y}_{k}\re)\tran\mathbf{v}\re - 
+            (\mathbf{y}_{k}\im)\tran\mathbf{v}\im \right) 
+             \\
+        \frac{\partial \tilde{s}\re_k}{\partial {v}\im_m} &= 
+            \left(v_k\im y_{km}\re - v_k\re y_{km}\im \right)
+            + \delta_{km}\left((\mathbf{y}_{k}\im)\tran \mathbf{v}\re
+                + (\mathbf{y}_{k}\re)\tran \mathbf{v}\im\right)
+            \label{eqref:delPdelvim}\\
+        % This is the one that disagrees with Sereeter et al
+        \frac{\partial \tilde{s}\im_k}{\partial {v}\re_m} &= 
+            \left(v_k\im y_{km}\re - v_k\re y_{km}\im\right)
+            -\delta_{km}\left((\mathbf{y}_{LL,k}\im)\tran \mathbf{v}\re
+                + (\mathbf{y}_{LL,k}\re)\tran \mathbf{v}\im \right)
+            \label{eqref:delQdelvre} \\ 
+        \frac{\partial \tilde{s}\im_k}{\partial {v}\im_m} &= 
+            -\left(v_k\re y_{km}\re + v_k\im y_{km}\im\right)
+            +\delta_{km}\left((\mathbf{y}_{LL,k}\re)\tran \mathbf{v}\re
+                - (\mathbf{y}_{LL,k}\im)\tran \mathbf{v}\im\right)
+    \end{align}
+\end{subequations}
+where 
+$$ \delta_{km} = \begin{cases} 1, & k=m \\ 0, & \text{otherwise} \end{cases} $$
+is the Kronecker delta. I'll point out here that my derivative 
+\eqref{eqref:delQdelvre} disagrees with Sereeter et al [2], Table 5, section 
+`Cartesian, $i=k$', term 2. I think that 
+this is a typo on their part. Also, the coded version of this in 
+\texttt{power{\textunderscore}flow{\textunderscore}tools.%
+full{\textunderscore}power{\textunderscore}flow{\textunderscore}Jacobian}, 
+because the function uses the definition for $\mathbf{Y}'$ (which has negative
+entries).
+
+\section*{References}
+\begin{itemize}
+    \item [[2]] Sereeter et al. 
+    https://www.sciencedirect.com/science/article/pii/S0377042719301876
+\end{itemize}
+
+\end{document}
