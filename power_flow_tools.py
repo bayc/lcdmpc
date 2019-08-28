@@ -36,7 +36,7 @@ def extract_admittance_matrix(csv_filename):
     
     return Y
 
-def construct_power_flow_Jacobian(admittance_matrix, s, v_lin, v_0=1+0j):
+def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
     """
     Get Jacobian for use in linearized PFE for load nodes.
     
@@ -44,12 +44,11 @@ def construct_power_flow_Jacobian(admittance_matrix, s, v_lin, v_0=1+0j):
         admittance_matrix - (N+1)x(N+1) array of complex - system 
                                                            admittance
                                                            matrix
-        s - Nx1 array of complex - nodal complex powers at `load' nodes
         v_lin - Nx1 array of complex - nodal voltage to linearize about
                                        (at `load' nodes)
         v_0 - complex - voltage at the slack bus (defaults to per unit)
     Outputs:
-        s - (N+1)x1 array of complex - nodel complex powers
+        s - (N+1)x1 array of complex - nodal complex powers
         i - (N+1)x1 array of complex - nodal complex currents
         v - (N+1)x1 array of complex - nodal complex voltages
     """
