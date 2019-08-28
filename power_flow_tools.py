@@ -75,7 +75,6 @@ def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin):
     Jac_s = full_power_flow_Jacobian(admittance_matrix, v_lin)
     v_prime = np.concatenate([np.real(v_lin), np.imag(v_lin)])
     s_prime = np.concatenate([np.real(s_lin), np.imag(s_lin)])
-
     A = np.linalg.inv(Jac_s)
     b = -A @ s_prime + v_prime
 
