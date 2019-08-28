@@ -36,6 +36,7 @@ def extract_admittance_matrix(csv_filename):
     
     return Y
 
+<<<<<<< HEAD
 def single_phase_equivalent(admittance_matrix_3phase):
     """
     Convert balanced 3-phase system to single phase equivalent.
@@ -80,6 +81,8 @@ def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin):
 
     return A, b
 
+=======
+>>>>>>> d7da6bc9f4ec8d8b357be8bef78c3ad5761e0e5a
 def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
     """
     Get Jacobian for use in linearized PFE for load nodes.
@@ -92,7 +95,13 @@ def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
                                        (at `load' nodes)
         v_0 - complex - voltage at the slack bus (defaults to per unit)
     Outputs:
+<<<<<<< HEAD
         Jac_s - 2Nx2N array of real - system Jacobian matrix
+=======
+        s - (N+1)x1 array of complex - nodal complex powers
+        i - (N+1)x1 array of complex - nodal complex currents
+        v - (N+1)x1 array of complex - nodal complex voltages
+>>>>>>> d7da6bc9f4ec8d8b357be8bef78c3ad5761e0e5a
     """
 
     # construct matrices, vectors in real form
