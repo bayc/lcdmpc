@@ -31,12 +31,12 @@ def extract_admittance_matrix(csv_filename):
     real_cols = np.arange(0,np.shape(Y_separated)[1],2)
     imag_cols = np.arange(1,np.shape(Y_separated)[1],2)
     Y = Y_separated[:, real_cols] + Y_separated[:, imag_cols]
+    Y = Y.astype(complex)
     if ~(Y == Y.T).all():
         raise TypeError('Y not symmetric!')
     
     return Y
 
-<<<<<<< HEAD
 def single_phase_equivalent(admittance_matrix_3phase):
     """
     Convert balanced 3-phase system to single phase equivalent.
@@ -75,14 +75,12 @@ def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin):
     Jac_s = full_power_flow_Jacobian(admittance_matrix, v_lin)
     v_prime = np.concatenate([np.real(v_lin), np.imag(v_lin)])
     s_prime = np.concatenate([np.real(s_lin), np.imag(s_lin)])
-    
+
     A = np.linalg.inv(Jac_s)
     b = -A @ s_prime + v_prime
 
     return A, b
 
-=======
->>>>>>> d7da6bc9f4ec8d8b357be8bef78c3ad5761e0e5a
 def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
     """
     Get Jacobian for use in linearized PFE for load nodes.
@@ -95,13 +93,7 @@ def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
                                        (at `load' nodes)
         v_0 - complex - voltage at the slack bus (defaults to per unit)
     Outputs:
-<<<<<<< HEAD
         Jac_s - 2Nx2N array of real - system Jacobian matrix
-=======
-        s - (N+1)x1 array of complex - nodal complex powers
-        i - (N+1)x1 array of complex - nodal complex currents
-        v - (N+1)x1 array of complex - nodal complex voltages
->>>>>>> d7da6bc9f4ec8d8b357be8bef78c3ad5761e0e5a
     """
 
     # construct matrices, vectors in real form
@@ -134,7 +126,6 @@ def full_power_flow_Jacobian(admittance_matrix, v_lin):
     Outputs:
         Jac_s - 2(N+1)x2(N+1) array of real - system Jacobian matrix
     """
-
     Y_prime = _build_Y_prime(admittance_matrix)
     v_prime = np.concatenate([np.real(v_lin), np.imag(v_lin)])
     

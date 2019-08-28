@@ -3,6 +3,8 @@
 *.CSV
 !/tests/data/13Bus/*.csv
 !/tests/data/4Bus/*.csv
+!/tests/data/13Bus/*.CSV
+!/tests/data/4Bus/*.CSV
 
 # Whatever this is
 .DS_Store
