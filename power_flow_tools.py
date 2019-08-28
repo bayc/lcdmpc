@@ -36,7 +36,49 @@ def extract_admittance_matrix(csv_filename):
     
     return Y
 
-def construct_power_flow_Jacobian(admittance_matrix, s, v_lin, v_0=1+0j):
+def single_phase_equivalent(admittance_matrix_3phase):
+    """
+    Convert balanced 3-phase system to single phase equivalent.
+    
+    Inputs:
+        admittance_matrix_3phase - (3(N+1))x(3(N+1)) array of complex
+
+    Outputs:
+        (admittance_matrix_1phase) - (N+1)x(N+1) array of complex
+    """
+
+    # Take only the A phase entries
+    keep_rows = np.arange(0, np.shape(admittance_matrix_3phase)[0], 3)
+    
+    return admittance_matrix_3phase[keep_rows,:][:,keep_rows]
+
+def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin, v_0=1+0j):
+    """
+    Construct inverse linearized PFE of form v' = As' + b.
+    
+    Inputs:
+        admittance_matrix - (N+1)x(N+1) array of complex - system 
+                                                           admittance
+                                                           matrix
+        s_lin - Nx1 array of complex - nodal complex powers to linearize
+                                       about (at `load' nodes)
+        v_lin - Nx1 array of complex - nodal voltage to linearize about
+                                       (at `load' nodes)
+        v_0 - complex - voltage at the slack bus (defaults to per unit)
+    Outputs:
+        A - 2Nx2N array of real - constraint system matrix
+        b - 2Nx1 array of real - constraint affine term
+    """ 
+
+    Jac_s = construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0)
+    
+    A = np.linalg.inv(Jac_s)
+
+    b = -A @ s_lin + v_lin
+
+    return A, b
+
+def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
     """
     Get Jacobian for use in linearized PFE for load nodes.
     
@@ -44,14 +86,11 @@ def construct_power_flow_Jacobian(admittance_matrix, s, v_lin, v_0=1+0j):
         admittance_matrix - (N+1)x(N+1) array of complex - system 
                                                            admittance
                                                            matrix
-        s - Nx1 array of complex - nodal complex powers at `load' nodes
         v_lin - Nx1 array of complex - nodal voltage to linearize about
                                        (at `load' nodes)
         v_0 - complex - voltage at the slack bus (defaults to per unit)
     Outputs:
-        s - (N+1)x1 array of complex - nodel complex powers
-        i - (N+1)x1 array of complex - nodal complex currents
-        v - (N+1)x1 array of complex - nodal complex voltages
+        Jac_s - 2Nx2N array of real - system Jacobian matrix
     """
 
     # construct matrices, vectors in real form
