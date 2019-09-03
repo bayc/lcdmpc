@@ -115,51 +115,57 @@ class subsystem():
         self.y = []
         self.z = []
         
-    def create_mpc_inputs(horizon_inputs):
-        mpc_inputs_list = []
-        for i in np.arange(self.horiz_len):
-            ms_dot = horizon_inputs[0][i]
-            T_da = horizon_inputs[1][i]
-            Q_hvac = ms_dot
-            mpc_inputs_list.append([]) 
+    def create_mpc_inputs(self,horizon_inputs):
+        ## create array of mpc inputs to facilitate computing predicted outputs
+        if self.nodeID ==0: ## building node
+            u_horizon_new = [] ## list to convert msdot, T_da to Q_hvac
+            for i in range(self.horizon_len):
+                ms_dot = horizon_inputs[0][2*i]
+                T_da = horizon_inputs[0][2*i+1]
+                Q_hvac = ms_dot*(T_da - self.outputs[0])
+                Q_hvac_dz = Q_hvac - self.mean_inputs[0][0] # Remove means
+                u_horizon_new.append(Q_hvac_dz)
+        else:
+            u_horizon_new = np.subtract(horizon_inputs[0],self.mean_inputs[0]) 
+        # Remove means from upstream inputs and disturbance inputs. 
+        v_horizon_new = np.subtract(horizon_inputs[1],self.mean_inputs[1])
+        d_horizon_new = np.subtract(horizon_inputs[2],self.mean_inputs[2])
+        new_horizon_inputs = [u_horizon_new,v_horizon_new,d_horizon_new]
+        return new_horizon_inputs
 
-    def filter_update(self,applied_inputs = [[0,0],[0,0,0]],measured_output = 21, past_output =21):
+    def filter_update(self,applied_inputs = [[0,0],[],[0,0,0]],measured_output = [21,0]):
         # update subsystem inputs and outputs (last applied and last measured)
-        self.inputs = applied_inputs
-        self.outputs = measured_output
+        # applied inputs = list of lists [u,v,d]. u = [msdot, Tda] for buildings, d = [T_oa, Q_int, Q_sol]
+        # measured output = [T_room, P_hvac]
         
-        # Calculate Q_hvac for the model
-        ms_dot = applied_inputs[0][0]
-        T_da = applied_inputs[0][1]
-        Q_hvac = ms_dot*(T_da - measured_output)
-        Q_hvac_dz = Q_hvac - self.mean_inputs[-1]
-        # State space inputs
-        d_dz = np.subtract(applied_inputs[1],mean_inputs[:-1]) # Disturbance inputs with mean removed
-        ss_cntrl_inputs = np.array([Q_hvac_dz])
-        ss_disturbance_inputs = d_dz
-        ss_disturbance_inputs[0] = applied_inputs[0][0] - past_output
-        x_k_k1 = self.A*self.x_k_k + np.sum(self.Bu*ss_cntrl_inputs)+np.sum(self.Bd*ss_disturbance_inputs)
-        # State update
-        self.x_k_k = self.C*x_k_k1 + self.K*(measured_output- self.mean_output - self.C*x_k_k1) 
+        self.inputs = applied_inputs # inputs applied at step k-1
+        past_output = self.outputs  # output at time step k-1
+        self.outputs = measured_output # output at time step k
+        
+        # Calculate Q_hvac for building model
+        # Check if subsystem model is a building model (nodeID of buildings = 0? )
+        if self.nodeID == 0:
+            ms_dot = applied_inputs[0][0]
+            T_da = applied_inputs[0][1]
+            Q_hvac = ms_dot*(T_da - past_output) 
+            Q_hvac_dz = Q_hvac - self.mean_inputs[0][0] # Control inputs with mean removed
+            v_dz = [0] # No upstream inputs for buildings
+        else:
+            u_dz = np.subtract(applied_inputs[0],mean_inputs[0]) # remove means from control inputs
+            v_dz = np.subtract(applied_inputs[1],mean_inputs[1]) # remove means from upstream inputs
+        d_dz = np.subtract(applied_inputs[2],mean_inputs[2]) # Disturbance inputs with mean removed
+        y_dz = np.subtract(measured_output,mean_output) # Remove mean from measured output
+        if self.nodeID == 0: # if building node control input is Q_hvac_dz
+            u_dz = np.array([Q_hvac_dz])  
+        # Filter time update    
+        self.x_k_k = np.sum(np.array(self.A)*np.array(self.x_k_k)) + \
+                     np.sum(np.array(self.Bu)*np.array(u_dz))+ \
+                     np.sum(np.array(self.Bv)*np.array(v_dz)) + \
+                     np.sum(np.array(self.Bd)*np.array(d_dz)) 
+        # Filter measurement update
+        prediction_error = np.subtract(y_dz,np.sum(np.array(self.C )*np.array(self.x_k_k)))
+        self.x_k_k = self.x_k_k + np.sum(np.array(self.K)*np.array(prediction_error)) 
     
-    def predicted_horizon(self,applied_inputs = [[0,0],[0,0,0]], measured_output = 21, past_output,horizon_inputs):
-        self.filter_update(applied_inputs,measured_output,past_output)
-        T_horizon = []
-        for i in arange(np.size(mpc_inputs,0)):
-            ss_disturbance_inputs = [horizon_inputs[j][i] for j in range(2,5)]
-            
-            if i == 0: 
-                ss_disturbance_inputs[0] = horizon_inputs[2][i] - measured_output
-                ss_cntrl_inputs = horizon_inputs[0][i]*(horizon_inputs[1][i] - measured_output)
-            else:
-                ss_disturbance_inputs[0] = horizon_inputs[2][i] - T_horizon[i-1]
-                ss_cntrl_inputs = horizon_inputs[0][i]*(horizon_inputs[1][i] - T_horizon[i-1])
-            ss_disturbance_inputs = np.array([ss_cntrl_inputs - self.mean_inputs[:-1]])
-            ss_cntrl_inputs = np.array([mpc_inputs[i][-1] - self.mean_inputs[-1]])
-            x_k_hat = self.A*self.x_k_k + np.sum(self.Bu*ss_cntrl_inputs)+np.sum(self.Bd*ss_disturbance_inputs)
-            T_horizon.append(self.C*x_k_hat + self.mean_output)
-            
-        self.T_pred.append(T_horizon)
 
     def set_opt_bounds(self, low, high):
         pass
