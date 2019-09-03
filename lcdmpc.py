@@ -73,7 +73,7 @@ class LCDMPC():
 
 class subsystem():
     def __init__(self, obj, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
-                 inputs, outputs, horiz_len, upstream=None, 
+                 inputs, outputs, horiz_len, cons, upstream=None, 
                  downstream=None, nodeID=None, nodeName=None):
         self.A = A
         self.Bu = Bu
@@ -88,6 +88,7 @@ class subsystem():
         self.inputs = inputs
         self.outputs = outputs
         self.horiz_len = horiz_len
+        self.cons = cons
         if upstream is not None:
             self.upstream = upstream
         else:
@@ -118,40 +119,83 @@ class subsystem():
     def set_opt_bounds(self, low, high):
         pass
 
+    # def optimize(self):
+    #     P_qp = self.H # quadratic term
+    #     q_qp = self.F # linear term
+    #     G_qp = TODO
+    #     h_qp = np.hstack(-1*self.lb, self.ub)
+    #     self.u = cvxopt_solve_qp(P_qp, q_qp)
+
+    # def cvxopt_solve_qp(P, q, G=None, h=None, A=None, b=None):    
+    #     P = .5 * (P + P.T)  # make sure P is symmetric
+    #     args = [cvx.matrix(P), cvx.matrix(q)]
+    #     if G is not None:
+    #         args.extend([cvx.matrix(G), cvx.matrix(h)])
+    #         if A is not None:
+    #             args.extend([cvx.matrix(A), cvx.matrix(b)])
+    #     sol = cvxopt.solvers.qp(*args)
+    #     if 'optimal' not in sol['status']:
+    #         return None
+    #     return np.array(sol['x']).reshape((P.shape[1],))
+
+    # def obj_func(self, control):
+    #     # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
+    #     self.update()
+    #     self.U = control
+    #     return dot(dot(tp(self.U), self.H), self.U) + 2*dot(tp(self.U), F) \
+    #         + dot(dot(tp(self.V), self.E), self.V) + 2*dot(tp(self.V), self.T)
+
     def optimize(self):
-        P_qp = self.H # quadratic term
-        q_qp = self.F # linear term
-        G_qp = TODO
-        h_qp = np.hstack(-1*self.lb, self.ub)
-        self.u = cvxopt_solve_qp(P_qp, q_qp)
-
-    def cvxopt_solve_qp(P, q, G=None, h=None, A=None, b=None):    
-        P = .5 * (P + P.T)  # make sure P is symmetric
-        args = [cvx.matrix(P), cvx.matrix(q)]
-        if G is not None:
-            args.extend([cvx.matrix(G), cvx.matrix(h)])
-            if A is not None:
-                args.extend([cvx.matrix(A), cvx.matrix(b)])
-        sol = cvxopt.solvers.qp(*args)
-        if 'optimal' not in sol['status']:
-            return None
-        return np.array(sol['x']).reshape((P.shape[1],))
-
-    def obj_func(self, control):
-        # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
         self.update()
-        self.U = control
-        return dot(dot(tp(self.U), self.H), self.U) + 2*dot(tp(self.U), F) \
-            + dot(dot(tp(self.V), self.E), self.V) + 2*dot(tp(self.V), self.T)
+
+        optProb = Optimization('LCDMPC', self.obj_func)
+        optProb.addVarGroup('U', len(self.u0), type='c', lower=self.u0_min, 
+                            upper=self.u0_max, value=self.u0)
+        optProb.addObj('obj')
+
+        optProb = self.add_constraints(optProb)
+
+        opt = SNOPT(optOptions=self.optOptions)
+        sol = opt(optProb, sens=self.sens)
+
+    def obj_func(self, varDict):
+        # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
+        self.U = varDict['U']
+        funcs = {}
+
+        funcs['obj'] = dot(dot(tp(self.U), self.H), self.U) \
+                     + 2*dot(tp(self.U), F) \
+                     + dot(dot(tp(self.V), self.E), self.V) \
+                     + 2*dot(tp(self.V), self.T)
+
+        fail = False
+        return funcs, fail
+
+    def sens(self, varDict, funcs):
+        self.U = varDict['U']
+        funcsSens = {}
+
+        funcsSens['obj', 'U'] = 2*dot(self.H, self.U) = 2*self.F
+
+        fail = False
+        return funcsSens, fail
+
+    def add_constraints(self, optProb):
+        for con in self.cons:
+            optProb.addConGroup(con['name'], con['ncon'], con['lower'], 
+                        con['upper'], con['wrt'], con['linear'], con['jac'])
+
+        return optProb
 
     def update(self):
         self.H = dot(dot(tp(self.My), self.Q), self.My) + self.S
         self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
         self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
-               + dot(self.Ny, self.V) - self.ref)) + 0.5*dot(tp(self.Mz), self.psi)
-        self.T = dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) - self.ref)) \
-               + 0.5*dot(tp(self.Nz), self.psi)
+               + dot(self.Ny, self.V) - self.ref)) \
+               + 0.5*dot(tp(self.Mz), self.psi)
+        self.T = dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) \
+               - self.ref)) + 0.5*dot(tp(self.Nz), self.psi)
 
     def calc_sens(self):
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \

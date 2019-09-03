@@ -49,8 +49,12 @@ outputs1 = [4,5]
 outputs2 = [55, 77]
 ID = 'building 1'
 
-tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, outputs1, horiz_len)
-tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, outputs2, horiz_len)
+cons1 = {'name':'con1', 'ncon':1, 'lower':t_low, 'upper':t_upper, 'wrt':['U']}
+
+tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
+    inputs, outputs1, horiz_len, cons1)
+tmp.build_subsystem(A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
+    inputs, outputs2, horiz_len, cons2)
 
 tmp.subsystems[0].sys_matrices()
 
