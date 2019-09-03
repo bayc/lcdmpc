@@ -154,7 +154,7 @@ class subsystem():
             u_dz = np.subtract(applied_inputs[0],self.mean_inputs[0]) # remove means from control inputs
             v_dz = np.subtract(applied_inputs[1],self.mean_inputs[1]) # remove means from upstream inputs
         d_dz = np.subtract(applied_inputs[2],self.mean_inputs[2]) # Disturbance inputs with mean removed
-        y_dz = np.subtract(measured_output,mean_output) # Remove mean from measured output
+        y_dz = np.subtract(measured_output,self.mean_output) # Remove mean from measured output
         if self.nodeID == 0: # if building node control input is Q_hvac_dz
             u_dz = np.array([Q_hvac_dz])  
         # Filter time update    
