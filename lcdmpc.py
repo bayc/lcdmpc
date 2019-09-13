@@ -14,16 +14,18 @@ import numpy as np
 from numpy import dot as dot
 from numpy import transpose as tp
 from numpy.linalg import matrix_power as matpower
+from pyoptsparse import Optimization, SNOPT
 
 class LCDMPC():
     def __init__(self):
         self.subsystems = []
 
-    def build_subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, outputs, 
-                        horiz_len, nodeID=None, nodeName=None):
+    def build_subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
+            inputs, outputs, refs, horiz_len, Beta, cons, nodeID=None, nodeName=None):
         # create subsystem object
-        subsys = subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, inputs, \
-            outputs, horiz_len, nodeID=nodeID, nodeName=nodeName)
+        subsys = subsystem(self, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
+            inputs, outputs, refs, horiz_len, Beta, cons, nodeID=nodeID, 
+            nodeName=nodeName)
         # append it to subsystem list
         self.subsystems.append(subsys)
         
@@ -57,24 +59,64 @@ class LCDMPC():
             self.subsystems[up].downstream.append(down)
             self.subsystems[down].upstream.append(up)
 
-    def update_outputs(self):
+    def update_downstream_outputs(self):
         """
         Update the z vectors of the subsystems.
         """
         for subsys in self.subsystems:
-            subsys.update_z()
+            subsys.update_Z()
 
     def communicate(self):
         """
         Exchange information between subsystems.
         """
         for subsys in self.subsystems:
-            subsys.update_v(self)
+            subsys.update_V(self)
+            subsys.update_Psi(self)
+
+    def optimize_all(self):
+        """
+        Loop through all subsystems and perform optimization.
+        """
+        for subsys in self.subsystems:
+            subsys.uOpt = subsys.optimize()
+
+    def convex_sum_cont(self):
+        """
+        Perform the convex combination of the new control action and 
+        the previous control action.
+        """
+        for subsys in self.subsystems:
+            subsys.uConv = subsys.Beta*subsys.uConv + \
+                           (1 - subsys.Beta)*subsys.uOpt
+
+    def calculate_sensitivities(self):
+        """
+        Calculate the sensitivities of the subsystem to the upstream 
+        systems.
+        """
+        for subsys in self.subsystems:
+            subsys.calc_sens()
+
+    def update_states(self):
+        """
+        Update the states of the subsystems.
+        """
+        for subsys in self.subsystems:
+            subsys.update_x()
+
+    def update_subsystem_outputs(self):
+        """
+        Update the subsystem outpus, 'y'.
+        """
+        for subsys in self.subsystems:
+            subsys.update_y()
+        
 
 class subsystem():
     def __init__(self, obj, A, Bu, Bv, Bd, Cy, Cz, Dyu, Dyv, Dzu, Dzv, 
-                 inputs, outputs, horiz_len, cons, upstream=None, 
-                 downstream=None, nodeID=None, nodeName=None):
+                 inputs, outputs, refs, horiz_len, Beta, cons, upstream=None, 
+                 downstream=None, nodeID=None, nodeName=None, optOptions=None):
         self.A = A
         self.Bu = Bu
         self.Bv = Bv
@@ -85,9 +127,13 @@ class subsystem():
         self.Dyv = Dyv
         self.Dzu = Dzu
         self.Dzv = Dzv
+        # self.Q = Q
+        # self.S = S
         self.inputs = inputs
         self.outputs = outputs
+        self.refs = refs
         self.horiz_len = horiz_len
+        self.Beta = Beta
         self.cons = cons
         if upstream is not None:
             self.upstream = upstream
@@ -105,13 +151,33 @@ class subsystem():
             self.nodeName = nodeName
         else:
             self.nodeName = 'Node ' + str(len(obj.subsystems))
+        if optOptions is not None:
+            self.optOptions = optOptions
+        else:
+            self.optOptions = {'Major feasibility tolerance' : 1e-1}
 
         self.mat_sizes()
-        self.x = []
-        self.u = []
-        self.v = []
+        self.sys_matrices()
+        self.x0 = np.zeros(self.nxA)
+        self.x1 = []
+        self.u0 = np.zeros(self.nxA*self.horiz_len)
+        self.uConv = self.u0
+        self.u0_min = self.cons['lower']*self.horiz_len
+        self.u0_max = self.cons['upper']*self.horiz_len
+        self.uOpt = []
+        # self.V = np.zeros((self.nyNy, self.nxCz))
+        self.V = np.zeros(self.nyNy)
         self.y = []
-        self.z = []
+        # self.Z = np.zeros((self.nxNz, np.shape(self.V)[1]))
+        self.Z = np.zeros(self.nxNz)
+        # self.Gamma = np.zeros((self.nxNz, self.nxCz))
+        self.Gamma = np.zeros(self.nxNz)
+        # self.Psi = np.zeros((self.nxMz, self.nxCz))
+        self.Psi = np.zeros(self.nxMz)
+        self.refs = self.refs*self.horiz_len
+        self.sol = []
+
+        self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
 
     def calculate_horizon(self):
         pass
@@ -153,29 +219,37 @@ class subsystem():
                             upper=self.u0_max, value=self.u0)
         optProb.addObj('obj')
 
-        optProb = self.add_constraints(optProb)
+        # optProb = self.add_constraints(optProb)
 
         opt = SNOPT(optOptions=self.optOptions)
         sol = opt(optProb, sens=self.sens)
 
+        self.sol = sol
+
+        print(sol)
+
+        return list(sol.getDVs().values())[0]
+
     def obj_func(self, varDict):
         # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
-        self.U = varDict['U']
+        self.uOpt = varDict['U']
         funcs = {}
 
-        funcs['obj'] = dot(dot(tp(self.U), self.H), self.U) \
-                     + 2*dot(tp(self.U), F) \
+        funcs['obj'] = dot(dot(tp(self.uOpt), self.H), self.uOpt) \
+                     + 2*dot(tp(self.uOpt), self.F) \
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T)
+
+        print('obj value: ', funcs['obj'])
 
         fail = False
         return funcs, fail
 
     def sens(self, varDict, funcs):
-        self.U = varDict['U']
+        self.uOpt = varDict['U']
         funcsSens = {}
 
-        funcsSens['obj', 'U'] = 2*dot(self.H, self.U) = 2*self.F
+        funcsSens['obj', 'U'] = 2*dot(self.H, self.uOpt) + 2*self.F
 
         fail = False
         return funcsSens, fail
@@ -192,50 +266,60 @@ class subsystem():
         self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
         self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
-               + dot(self.Ny, self.V) - self.ref)) \
-               + 0.5*dot(tp(self.Mz), self.psi)
+               + dot(self.Ny, self.V) - self.refs)) \
+               + 0.5*dot(tp(self.Mz), self.Psi)
         self.T = dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) \
-               - self.ref)) + 0.5*dot(tp(self.Nz), self.psi)
+               - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
 
     def calc_sens(self):
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \
-                   + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.U))
+                   + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
 
     def update_subsys(self):
         self.update_x()
         self.update_y()
-        self.update_z()
+        self.update_Z()
 
-    def update_v(self, obj):
+    def update_V(self, obj):
+        # TODO: figure out how to make this work when z is more than one value
         for upstream in self.upstream:
-            self.v = obj.subsystems[upstream].z
+            self.V = obj.subsystems[upstream].Z
+
+    def update_Psi(self, obj):
+        # TODO: figure out how to make this work when z is more than one value
+        for upstream in self.upstream:
+            self.Psi = obj.subsystems[upstream].Gamma
 
     def update_x(self):
-        self.x = dot(self.A, self.x) + dot(self.Bu, self.u) \
-            + dot(self.Bv, self.v) + dot(self.Bd, self.d)
+        # TODO: add in self.d to class
+        self.x1 = dot(self.A, self.x0) + dot(self.Bu, self.uConv[0:self.nxBu]) \
+            + dot(self.Bv, self.V[0:self.nxBv])# + dot(self.Bd, self.d)
+        self.x0 = self.x1
 
     def update_y(self):
-        self.y = dot(self.Cy, self.x) + dot(self.Dyu, self.u) \
-            + dot(self.Dyv, self.v)
+        self.y = dot(self.Cy, self.x0) + dot(self.Dyu, self.uConv[0:self.nxDyu]) \
+            + dot(self.Dyv, self.V[0:self.nxDyv])
 
-    def update_z(self):
-        self.z = dot(self.Fz, self.x) + dot(self.Mz, self.u) \
-            + dot(self.Nz, self.v)
+    def update_Z(self):
+        self.Z = dot(self.Fz, self.x0) + dot(self.Mz, self.uConv) \
+            + dot(self.Nz, self.V)
 
     def sys_matrices(self):       
         self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
                   for i in range(1, self.horiz_len + 1)])
-        if self.Fy[0].ndim > 1:
-            self.Fy = np.concatenate(self.Fy, axis=1)
-        else:
-            self.Fy = np.concatenate(self.Fy)
+        self.Fy = np.reshape(self.Fy, (self.nxCy*self.horiz_len, self.nxA), order='C')
+        # if self.Fy[0].ndim > 1:
+        #     self.Fy = np.concatenate(self.Fy, axis=0)
+        # else:
+        #     self.Fy = np.concatenate(self.Fy)
 
         self.Fz = np.array([dot(self.Cz, matpower(self.A, i)) \
                   for i in range(0, self.horiz_len)])
-        if self.Fz[0].ndim > 1:
-            self.Fz = np.concatenate(self.Fz, axis=1)
-        else:
-            self.Fz = np.concatenate(self.Fz)
+        self.Fz = np.reshape(self.Fz, (self.nxCz*self.horiz_len, self.nxA))
+        # if self.Fz[0].ndim > 1:
+        #     self.Fz = np.concatenate(self.Fz, axis=1)
+        # else:
+        #     self.Fz = np.concatenate(self.Fz)
 
         # Mytmp = dot(self.Cy, self.Bu)
         # MytmpShape = np.shape(Mytmp)
@@ -330,6 +414,52 @@ class subsystem():
                         dot(matpower(self.A, i), self.Bv )), Nztmp[-self.nxCz:,:-self.nyBv]))))
         self.Nz = Nztmp
 
+        if self.Fy.ndim == 1:
+            self.nxFy = 1
+            self.nyFy = 0
+        else:
+            self.nxFy = np.shape(self.Fy)[0]
+            self.nyFy = np.shape(self.Fy)[1]
+
+        if self.Fz.ndim == 1:
+            self.nxFz = 1
+            self.nyFz = 0
+        else:
+            self.nxFz = np.shape(self.Fz)[0]
+            self.nyFz = np.shape(self.Fz)[1]
+
+        if self.My.ndim == 1:
+            self.nxMy = 1
+            self.nyMy = 0
+        else:
+            self.nxMy = np.shape(self.My)[0]
+            self.nyMy = np.shape(self.My)[1]
+
+        if self.Mz.ndim == 1:
+            self.nxMz = 1
+            self.nyMz = 0
+        else:
+            self.nxMz = np.shape(self.Mz)[0]
+            self.nyMz = np.shape(self.Mz)[1]
+
+        if self.Ny.ndim == 1:
+            self.nxNy = 1
+            self.nyNy = 0
+        else:
+            self.nxNy = np.shape(self.Ny)[0]
+            self.nyNy = np.shape(self.Ny)[1]
+
+        if self.Nz.ndim == 1:
+            self.nxNz = 1
+            self.nyNz = 0
+        else:
+            self.nxNz = np.shape(self.Nz)[0]
+            self.nyNz = np.shape(self.Nz)[1]
+
+        # TODO: make this work for user-supplied Q's and S's
+        self.Q = np.diag(np.ones(self.nxMy))
+        self.S = np.diag(np.ones(self.nyMy))
+
     def mat_sizes(self):
         if self.A.ndim == 1:
             self.nxA = 1
@@ -385,14 +515,23 @@ class subsystem():
         else:
             raise Exception("The 'Cz' matrix has > 2 dimensions")
 
-        # if self.Dy.ndim == 1:
-        #     self.nxDy = 1
-        #     self.nyDy = 0
-        # elif self.Dy.ndim == 2:
-        #     self.nxDy = np.shape(self.Dy)[0]
-        #     self.nyDy = np.shape(self.Dy)[1]
-        # else:
-        #     raise Exception("The 'Dy' matrix has > 2 dimensions")
+        if self.Dyu.ndim == 1:
+            self.nxDyu = 1
+            self.nyDyu = 0
+        elif self.Dyu.ndim == 2:
+            self.nxDyu = np.shape(self.Dyu)[0]
+            self.nyDyu = np.shape(self.Dyu)[1]
+        else:
+            raise Exception("The 'Dy' matrix has > 2 dimensions")
+
+        if self.Dyv.ndim == 1:
+            self.nxDyv = 1
+            self.nyDyv = 0
+        elif self.Dyv.ndim == 2:
+            self.nxDyv = np.shape(self.Dyv)[0]
+            self.nyDyv = np.shape(self.Dyv)[1]
+        else:
+            raise Exception("The 'Dy' matrix has > 2 dimensions")
 
         # if self.Dz.ndim == 1:
         #     self.nxDz = 1
