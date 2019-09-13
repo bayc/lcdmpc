@@ -72,13 +72,13 @@ def linear_power_flow_constraint(admittance_matrix, s_lin, v_lin):
         b - 2Nx1 array of real - (real) constraint affine term
     """ 
 
-    Jac_s = full_power_flow_Jacobian(admittance_matrix, v_lin)
+    Jac_s, Y_prime = full_power_flow_Jacobian(admittance_matrix, v_lin)
     v_prime = np.concatenate([np.real(v_lin), np.imag(v_lin)])
     s_prime = np.concatenate([np.real(s_lin), np.imag(s_lin)])
     A = np.linalg.inv(Jac_s)
     b = -A @ s_prime + v_prime
 
-    return A, b
+    return Y_prime, Jac_s, A, b
 
 def construct_power_flow_Jacobian(admittance_matrix, v_lin, v_0=1+0j):
     """
@@ -158,7 +158,7 @@ def full_power_flow_Jacobian(admittance_matrix, v_lin):
                                 v_prime[k][0] * Y_prime[N+1+k,N+1+m]) \
                                - kronecker_delta * (Y_prime[k,:] @ v_prime)
 
-    return Jac
+    return Jac, Y_prime
 
 def power_flow_mismatch_Jacobian(Y_LL_prime, Y_L0_prime, v_prime, v_0_prime):
     """
