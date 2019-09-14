@@ -20,7 +20,7 @@ time = 10       # Length of simulation in minutes
 dt = 1          # Time-step in minutes
 horiz_len = 5   # Prediction horizion length
 commuincation_iterations = 10
-Beta = 0.7      # Convex combination parameter for control action
+Beta = 0.5      # Convex combination parameter for control action
 
 A = np.array([[0.2, 0.0], 
              [0.0, 0.4]])
@@ -80,6 +80,8 @@ for i in range(int(time/dt)):
         tmp.update_states()
 
         tmp.update_subsystem_outputs()
+
+        # TODO: add Rohit's filter update
 
     cont1.append(tmp.subsystems[0].uConv[0:2])
     out1.append(tmp.subsystems[0].y[0:2])

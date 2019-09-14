@@ -185,32 +185,6 @@ class subsystem():
     def set_opt_bounds(self, low, high):
         pass
 
-    # def optimize(self):
-    #     P_qp = self.H # quadratic term
-    #     q_qp = self.F # linear term
-    #     G_qp = TODO
-    #     h_qp = np.hstack(-1*self.lb, self.ub)
-    #     self.u = cvxopt_solve_qp(P_qp, q_qp)
-
-    # def cvxopt_solve_qp(P, q, G=None, h=None, A=None, b=None):    
-    #     P = .5 * (P + P.T)  # make sure P is symmetric
-    #     args = [cvx.matrix(P), cvx.matrix(q)]
-    #     if G is not None:
-    #         args.extend([cvx.matrix(G), cvx.matrix(h)])
-    #         if A is not None:
-    #             args.extend([cvx.matrix(A), cvx.matrix(b)])
-    #     sol = cvxopt.solvers.qp(*args)
-    #     if 'optimal' not in sol['status']:
-    #         return None
-    #     return np.array(sol['x']).reshape((P.shape[1],))
-
-    # def obj_func(self, control):
-    #     # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
-    #     self.update()
-    #     self.U = control
-    #     return dot(dot(tp(self.U), self.H), self.U) + 2*dot(tp(self.U), F) \
-    #         + dot(dot(tp(self.V), self.E), self.V) + 2*dot(tp(self.V), self.T)
-
     def optimize(self):
         self.update()
 
@@ -226,7 +200,7 @@ class subsystem():
 
         self.sol = sol
 
-        print(sol)
+        # print(sol)
 
         return list(sol.getDVs().values())[0]
 
@@ -240,7 +214,7 @@ class subsystem():
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T)
 
-        print('obj value: ', funcs['obj'])
+        # print('obj value: ', funcs['obj'])
 
         fail = False
         return funcs, fail
