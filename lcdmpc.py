@@ -20,12 +20,11 @@ class LCDMPC():
     def __init__(self):
         self.subsystems = []
 
-    def build_subsystem(self, model, 
-            inputs, outputs, refs, horiz_len, Beta, cons, nodeID=None, nodeName=None):
+    def build_subsystem(self, model, inputs, disturb, outputs, refs, horiz_len, 
+                        Beta, nodeID=None, nodeName=None):
         # create subsystem object
-        subsys = subsystem(self, model, 
-            inputs, outputs, refs, horiz_len, Beta, cons, nodeID=nodeID, 
-            nodeName=nodeName)
+        subsys = subsystem(self, model, inputs, disturb, outputs, refs, 
+                           horiz_len, Beta, nodeID=nodeID, nodeName=nodeName)
         # append it to subsystem list
         self.subsystems.append(subsys)
         
@@ -52,12 +51,17 @@ class LCDMPC():
             interconnections (list): A list of tuples containing the 
                 upstream and downstream nodeIds.
         """
-        for pair in interconnections:
-            up = pair[0]
-            down = pair[1]
+        if interconnections==None:
+            for subsys in self.subsystems:
+                subsys.downstream.append('None')
+                subsys.upstream.append('None')
+        else:
+            for pair in interconnections:
+                up = pair[0]
+                down = pair[1]
 
-            self.subsystems[up].downstream.append(down)
-            self.subsystems[down].upstream.append(up)
+                self.subsystems[up].downstream.append(down)
+                self.subsystems[down].upstream.append(up)
 
     def update_downstream_outputs(self):
         """
@@ -112,11 +116,27 @@ class LCDMPC():
         """
         for subsys in self.subsystems:
             subsys.update_y()
+
+    def update_inputs_for_linearization(self):
+        """
+        Updates the inputs for the subsystems to correctly relinearize, if 
+        needed.
+        """
+        for subsys in self.subsystems:
+            subsys.update_inputs()
+
+    def relinearize_subsystem_models(self):
+        """
+        Uses the latest input data to relinearize the subsystem models.
+        """
+        for subsys in self.subsystems:
+            subsys.relinearize(subsys.model, subsys.inputs, 
+                               subsys.d, subsys.outputs)
         
 
 class subsystem():
-    def __init__(self, obj, model, inputs, outputs, refs, horiz_len, 
-                 Beta, cons, upstream=None, downstream=None, 
+    def __init__(self, obj, model, inputs, disturb, outputs, refs, horiz_len, 
+                 Beta, upstream=None, downstream=None, 
                  nodeID=None, nodeName=None, optOptions=None):
         # self.Q = Q
         # self.S = S
@@ -124,9 +144,9 @@ class subsystem():
         self.refs = refs
         self.horiz_len = horiz_len
         self.Beta = Beta
-        self.cons = cons
 
-        self.relinearize(model, inputs, outputs)
+        self.y = [0.]
+        self.relinearize(model, inputs, disturb, outputs)
 
         if upstream is not None:
             self.upstream = upstream
@@ -157,17 +177,20 @@ class subsystem():
         self.u0_min = 0.0
         self.u0_max = 100.0
         self.uOpt = []
-        self.d = [6.0, 2.0, 2.0]
         self.V = np.zeros(self.nyNy)
         # self.V = np.array([[0.0] for _ in range(self.nyNy)])
-        self.y = []
+        
         self.Z = np.zeros(self.nxNz)
         self.Gamma = np.zeros(self.nxNz)
         self.Psi = np.zeros(self.nxMz)
         self.refs = self.refs*self.horiz_len
         self.sol = []
 
-    def relinearize(self, model, inputs, outputs):
+    def relinearize(self, model, inputs, disturb, outputs):
+
+        print('self.y: ', self.y)
+        self.refs = [val - self.y[0] for val in self.refs]
+        print('REFS: ', self.refs)
 
         self.inputs = inputs
         self.outputs = outputs
@@ -194,6 +217,8 @@ class subsystem():
 
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
 
+        self.d = disturb
+
     def calculate_horizon(self):
         pass
 
@@ -207,119 +232,63 @@ class subsystem():
         # optProb.addVarGroup('U', len(self.u0), type='c', lower=self.u0_min, 
         #                     upper=self.u0_max, value=self.u0)
 
-        optProb.addVarGroup('Qhvac', 5, type='c', lower=-50.0, upper=0.0, value=-8.24)
-        optProb.addVarGroup('ms_dot', 5, type='c', lower=0.0, upper=10.0, value=0.8)
-        optProb.addVarGroup('T_sa', 5, type='c', lower=10.0, upper=14.0, value=12.8)
+        optProb = self.model.add_var_group(optProb)
 
-        # optProb.addCon('con1', lower=0, upper=0)
-        # optProb.addCon('con2', lower=0, upper=0)
-        # optProb.addCon('con3', lower=0, upper=0)
-        # optProb.addCon('con4', lower=0, upper=0)
-        # optProb.addCon('con5', lower=0, upper=0)
-        # optProb.addCon('con6', lower=21, upper=25)
-        # optProb.addCon('con7', lower=21, upper=25)
-        # optProb.addCon('con8', lower=21, upper=25)
-        # optProb.addCon('con9', lower=21, upper=25)
-        # optProb.addCon('con10', lower=21, upper=25)
+        optProb = self.model.add_con_group(optProb)
 
-        optProb.addConGroup('con1', 5, lower=0, upper=0)
-        optProb.addConGroup('con6', 5, lower=-2, upper=2)
         optProb.addObj('obj')
 
         # optProb = self.add_constraints(optProb)
 
         opt = SNOPT(optOptions=self.optOptions)
-        # sol = opt(optProb, sens=self.sens)
-        sol = opt(optProb, sens='FD')
+        sol = opt(optProb, sens=self.sens)
+        # sol = opt(optProb, sens='FD')
         # sol = opt(optProb)
 
         self.sol = sol
 
         # print(sol)
 
-        self.Qhvac = list(sol.getDVs().values())[0]
-        self.ms_dot = list(sol.getDVs().values())[1]
-        self.T_sa = list(sol.getDVs().values())[2]
-
-        vars = [self.Qhvac, self.ms_dot, self.T_sa]
-        self.uOpt = [val for tup in zip(*vars) for val in tup]
-
-        # return list(sol.getDVs().values())[0]
+        self.uOpt = self.model.parse_sol_vars(sol)
         return self.uOpt
 
     def obj_func(self, varDict):
-        # U^T*H*U + 2*U^T*F + V^T*E*V + 2*V^T*T
-        # self.uOpt = varDict['U']
-        self.Qhvac = varDict['Qhvac']
-        self.ms_dot = varDict['ms_dot']
-        self.T_sa = varDict['T_sa']
-
-        vars = [self.Qhvac, self.ms_dot, self.T_sa]
-        self.uOpt = [val for tup in zip(*vars) for val in tup]
+        # Parse the optimization variables defined in the model file
+        self.uOpt = self.model.parse_opt_vars(varDict)
+        
+        # Setup the objective function for LC-DMPC
         funcs = {}
-
-        funcs['obj'] = dot(dot(tp(self.uOpt), self.H), self.uOpt) \
+        funcs['obj'] = (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
                      + 2*dot(tp(self.uOpt), self.F) \
                      + dot(dot(tp(self.V), self.E), self.V) \
-                     + 2*dot(tp(self.V), self.T)
+                     + 2*dot(tp(self.V), self.T))
 
-        # Add constraints, if any are defined for model
+        # Compute constraints, if any are defined for model
         self.update_Y()
-        funcs = self.model.add_cons(funcs, self.uOpt, self.Y)
-        # print('Y: ', self.Y)
-        # print(funcs)
+        funcs = self.model.compute_cons(funcs, self.uOpt, self.Y)
 
         fail = False
         return funcs, fail
 
     def sens(self, varDict, funcs):
-        # self.uOpt = varDict['U']
-        self.Qhvac = varDict['Qhvac']
-        self.ms_dot = varDict['ms_dot']
-        self.T_sa = varDict['T_sa']
+        # Parse the optimization variables defined in the model file
+        self.uOpt = self.model.parse_opt_vars(varDict)
 
-        vars = [self.Qhvac, self.ms_dot, self.T_sa]
-        self.uOpt = [val for tup in zip(*vars) for val in tup]
-        # print('uOpt: ', self.uOpt)
         funcsSens = {}
-
-        # funcsSens['obj', 'U'] = 2*dot(self.H, self.uOpt) + 2*self.F
-        # funcsSens['obj', 'Qhvac'] = (2*dot(self.H, self.uOpt) + 2*self.F)[0::3]
-        # funcsSens['obj', 'ms_dot'] = (2*dot(self.H, self.uOpt) + 2*self.F)[1::3]
-        # funcsSens['obj', 'T_sa'] = (2*dot(self.H, self.uOpt) + 2*self.F)[2::3]
-
-        # funcsSens['con1', 'Qhvac'] = np.ones(5)
-        # funcsSens['con1', 'ms_dot'] = -1*np.ones(5)*self.T_sa
-        # funcsSens['con1', 'T_sa'] = -1*np.ones(5)*self.ms_dot
-
-        # funcsSens['con1', 'Qhvac'] = 1.0
-        # funcsSens['con1', 'ms_dot'] = -1*self.T_sa[0]
-        # funcsSens['con1', 'T_sa'] = -1*self.ms_dot[0]
-        # funcsSens['con2', 'Qhvac'] = 1.0
-        # funcsSens['con2', 'ms_dot'] = -1*self.T_sa[1]
-        # funcsSens['con2', 'T_sa'] = -1*self.ms_dot[1]
-        # funcsSens['con3', 'Qhvac'] = 1.0
-        # funcsSens['con3', 'ms_dot'] = -1*self.T_sa[2]
-        # funcsSens['con3', 'T_sa'] = -1*self.ms_dot[2]
-        # funcsSens['con4', 'Qhvac'] = 1.0
-        # funcsSens['con4', 'ms_dot'] = -1*self.T_sa[3]
-        # funcsSens['con4', 'T_sa'] = -1*self.ms_dot[3]
-        # funcsSens['con5', 'Qhvac'] = 1.0
-        # funcsSens['con5', 'ms_dot'] = -1*self.T_sa[4]
-        # funcsSens['con5', 'T_sa'] = -1*self.ms_dot[4]
-
-        funcsSens = {('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
-                     ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
-                     ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
-                    #  ('con1', 'Qhvac') : np.ones(5)*1.0,
-                    #  ('con1', 'ms_dot') : -1*np.ones(5)*self.T_sa[0],
-                    #  ('con1', 'T_sa') : -1*np.ones(5)*self.ms_dot[0]}
-                     ('con1', 'Qhvac') : np.eye(5)*1.0,
-                     ('con1', 'ms_dot') : -1*np.eye(5)*self.T_sa,
-                     ('con1', 'T_sa') : -1*np.eye(5)*self.ms_dot,
-                     ('con6', 'Qhvac') : np.eye(5)*np.diag(self.model.A),
-                     ('con6', 'ms_dot') : np.eye(5)*0.0,
-                     ('con6', 'T_sa') : np.eye(5)*1.0}
+        funcsSens = {('obj', 'yaw_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::2],
+                     ('obj', 'Ct_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::2]}
+        # funcsSens = {('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
+        #              ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
+        #              ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
+        #             #  ('con1', 'Qhvac') : np.ones(5)*1.0,
+        #             #  ('con1', 'ms_dot') : -1*np.ones(5)*self.T_sa[0],
+        #             #  ('con1', 'T_sa') : -1*np.ones(5)*self.ms_dot[0]}
+        #              ('con1', 'Qhvac') : np.eye(5)*1.0,
+        #              ('con1', 'ms_dot') : -1*np.eye(5)*self.T_sa,
+        #              ('con1', 'T_sa') : -1*np.eye(5)*self.ms_dot,
+        #              ('con6', 'Qhvac') : np.eye(5)*np.diag(self.model.A),
+        #              ('con6', 'ms_dot') : np.eye(5)*0.0,
+        #              ('con6', 'T_sa') : np.eye(5)*1.0}
             #          ('con6', 'ms_dot') : np.diag((3*self.model.a0*self.ms_dot**2 + 2*self.model.a1*self.ms_dot + self.model.a0 \
             #   + 1.005/self.model.hvac_cop*(0.3*self.model.T_oa + (1 - 0.3)*self.Y - self.T_sa))._value),
             #          ('con6', 'T_sa') : np.diag(-1*1.005/self.model.hvac_cop*self.ms_dot)}
@@ -350,6 +319,7 @@ class subsystem():
         self.H = dot(dot(tp(self.My), self.Q), self.My) + self.S
         self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
+        print(np.shape(self.refs))
         self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
                + dot(self.Ny, self.V) - self.refs)) \
                + 0.5*dot(tp(self.Mz), self.Psi)
@@ -360,6 +330,9 @@ class subsystem():
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \
                    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
 
+    def update_inputs(self):
+        self.inputs = self.model.update_inputs(self.x0, self.d)
+
     def update_subsys(self):
         self.update_x()
         self.update_y()
@@ -368,15 +341,19 @@ class subsystem():
     def update_V(self, obj):
         # TODO: figure out how to make this work when z is more than one value
         for upstream in self.upstream:
-            self.V = obj.subsystems[upstream].Z
-            self.V = np.zeros(5)
-            # self.V = np.array([[val] for val in obj.subsystems[upstream].Z])
+            if upstream=='None':
+                self.V = np.zeros(self.nyNy)
+            else:
+                self.V = obj.subsystems[upstream].Z
+                # self.V = np.array([[val] for val in obj.subsystems[upstream].Z])
 
     def update_Psi(self, obj):
         # TODO: figure out how to make this work when z is more than one value
         for upstream in self.upstream:
-            self.Psi = obj.subsystems[upstream].Gamma
-            self.Psi = np.zeros(5)
+            if upstream=='None':
+                self.Psi = np.zeros(self.nxMy)
+            else:
+                self.Psi = obj.subsystems[upstream].Gamma
 
     def update_x(self):
         # TODO: add in self.d to class
