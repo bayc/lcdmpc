@@ -37,13 +37,20 @@
 ######## The beginning of pseudo-code! #########
 ################################################
 
+
+
 # TODO: Do we need some sort of execute function? Or is that taken care
 #       of by co-sim somehow? This may make more sense after reading
 #       through the current code below.
 
-import opendssdirect as dss
 import pandas as pd
 import numpy as np
+import aes
+
+# initial parameters
+# start and stop times
+starttime = "2019-02-15 00:00:00"
+stoptime = "2019-02-15 00:10:00"
 
 def get_data(build_file_name, wind_file_name, ts, horiz_len):
     """
