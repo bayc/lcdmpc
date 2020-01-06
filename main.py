@@ -14,8 +14,8 @@ import lcdmpc as opt
 import numpy as np
 # import numpy.linalg.matrix_power as matpow
 
-from bldg_data_driven_mdl import bldg_data_driven_mdl
-from wind_mdl import wind_mdl
+from models.bldg_data_driven_mdl import bldg_data_driven_mdl
+from models.wind_mdl import wind_mdl
 from floris.floris import Floris
 
 tmp = opt.LCDMPC()
