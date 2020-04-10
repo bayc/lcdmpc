@@ -139,9 +139,11 @@ def full_power_flow_Jacobian(admittance_matrix, v_lin):
                 kronecker_delta = 0
                       
             # Top left (R,R)
-            Jac[k,m] =  (v_prime[k][0] * Y_prime[k,m] + \
-                         v_prime[N+1+k][0] * Y_prime[N+1+k,m]) \
-                        + kronecker_delta * (Y_prime[k,:] @ v_prime)                       
+            Jac[k,m] =  (
+                v_prime[k][0] * Y_prime[k,m] \
+                + v_prime[N+1+k][0] * Y_prime[N+1+k,m]) \
+                + kronecker_delta \
+                * (Y_prime[k,:] @ v_prime)                       
             
             # Top right (R,I)
             Jac[k,N+1+m] = (v_prime[N+1+k][0] * Y_prime[N+1+k,N+1+m] + \

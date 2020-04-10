@@ -26,12 +26,12 @@ Y_1 = power_flow_tools.single_phase_equivalent(Y)
 
 np.set_printoptions(suppress=True)
 
-
-
 # BELOW NUMBERS ARE MADE UP TO TEST CONSTRAINT-MAKING CODE. NOT REALISTIC.
 v_lin = np.array([[1+0j], [1.2+0.1j], [1+0.2j], [0.9+0.3j], [1.2+0.2j]])
 s_lin = np.diag(v_lin.reshape(-1)) @ np.conj(Y_1) @ np.conj(v_lin)
-Y_prime, Jac_s, A, b = power_flow_tools.linear_power_flow_constraint(Y_1, s_lin, v_lin)
+Y_prime, Jac_s, A, b = power_flow_tools.linear_power_flow_constraint(
+    Y_1, s_lin, v_lin
+)
 
 print(Y_1)
 print('==========================================')

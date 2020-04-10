@@ -1,4 +1,4 @@
-# Copyright 2019 NREL
+# Copyright 2020 NREL
 
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not 
 # use this file except in compliance with the License. You may obtain a copy of 
@@ -275,35 +275,44 @@ class subsystem():
         self.uOpt = self.model.parse_opt_vars(varDict)
 
         funcsSens = {}
-        funcsSens = {('obj', 'yaw_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::2],
-                     ('obj', 'Ct_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::2]}
-        # funcsSens = {('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
-        #              ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
-        #              ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
-        #             #  ('con1', 'Qhvac') : np.ones(5)*1.0,
-        #             #  ('con1', 'ms_dot') : -1*np.ones(5)*self.T_sa[0],
-        #             #  ('con1', 'T_sa') : -1*np.ones(5)*self.ms_dot[0]}
-        #              ('con1', 'Qhvac') : np.eye(5)*1.0,
-        #              ('con1', 'ms_dot') : -1*np.eye(5)*self.T_sa,
-        #              ('con1', 'T_sa') : -1*np.eye(5)*self.ms_dot,
-        #              ('con6', 'Qhvac') : np.eye(5)*np.diag(self.model.A),
-        #              ('con6', 'ms_dot') : np.eye(5)*0.0,
-        #              ('con6', 'T_sa') : np.eye(5)*1.0}
-            #          ('con6', 'ms_dot') : np.diag((3*self.model.a0*self.ms_dot**2 + 2*self.model.a1*self.ms_dot + self.model.a0 \
-            #   + 1.005/self.model.hvac_cop*(0.3*self.model.T_oa + (1 - 0.3)*self.Y - self.T_sa))._value),
-            #          ('con6', 'T_sa') : np.diag(-1*1.005/self.model.hvac_cop*self.ms_dot)}
-                    #  ('con2', 'Qhvac') : 1.0,
-                    #  ('con2', 'ms_dot') : -1*self.T_sa[1],
-                    #  ('con2', 'T_sa') : -1*self.ms_dot[1],
-                    #  ('con3', 'Qhvac') : 1.0,
-                    #  ('con3', 'ms_dot') : -1*self.T_sa[2],
-                    #  ('con3', 'T_sa') : -1*self.ms_dot[2],
-                    #  ('con4', 'Qhvac') : 1.0,
-                    #  ('con4', 'ms_dot') : -1*self.T_sa[3],
-                    #  ('con4', 'T_sa') : -1*self.ms_dot[3],
-                    #  ('con5', 'Qhvac') : 1.0,
-                    #  ('con5', 'ms_dot') : -1*self.T_sa[4],
-                    #  ('con5', 'T_sa') : -1*self.ms_dot[4]}
+        funcsSens = {
+            ('obj', 'yaw_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::2],
+            ('obj', 'Ct_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::2]
+        }
+        # funcsSens = {
+        #     ('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
+        #     ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
+        #     ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
+        #     #  ('con1', 'Qhvac') : np.ones(5)*1.0,
+        #     #  ('con1', 'ms_dot') : -1*np.ones(5)*self.T_sa[0],
+        #     #  ('con1', 'T_sa') : -1*np.ones(5)*self.ms_dot[0]}
+        #     ('con1', 'Qhvac') : np.eye(5)*1.0,
+        #     ('con1', 'ms_dot') : -1*np.eye(5)*self.T_sa,
+        #     ('con1', 'T_sa') : -1*np.eye(5)*self.ms_dot,
+        #     ('con6', 'Qhvac') : np.eye(5)*np.diag(self.model.A),
+        #     ('con6', 'ms_dot') : np.eye(5)*0.0,
+        #     ('con6', 'T_sa') : np.eye(5)*1.0}
+        #     ('con6', 'ms_dot') : np.diag(
+        #         (3*self.model.a0*self.ms_dot**2 \
+        #         + 2*self.model.a1*self.ms_dot \
+        #         + self.model.a0 + 1.005/self.model.hvac_cop \
+        #         * (0.3*self.model.T_oa + (1 - 0.3)*self.Y - self.T_sa))._value
+        #     ),
+        #     ('con6', 'T_sa'): np.diag(
+        #         -1*1.005/self.model.hvac_cop*self.ms_dot
+        #     )}
+        #     ('con2', 'Qhvac') : 1.0,
+        #     ('con2', 'ms_dot') : -1*self.T_sa[1],
+        #     ('con2', 'T_sa') : -1*self.ms_dot[1],
+        #     ('con3', 'Qhvac') : 1.0,
+        #     ('con3', 'ms_dot') : -1*self.T_sa[2],
+        #     ('con3', 'T_sa') : -1*self.ms_dot[2],
+        #     ('con4', 'Qhvac') : 1.0,
+        #     ('con4', 'ms_dot') : -1*self.T_sa[3],
+        #     ('con4', 'T_sa') : -1*self.ms_dot[3],
+        #     ('con5', 'Qhvac') : 1.0,
+        #     ('con5', 'ms_dot') : -1*self.T_sa[4],
+        #     ('con5', 'T_sa') : -1*self.ms_dot[4]}
 
         fail = False
         return funcsSens, fail
@@ -345,7 +354,8 @@ class subsystem():
                 self.V = np.zeros(self.nyNy)
             else:
                 self.V = obj.subsystems[upstream].Z
-                # self.V = np.array([[val] for val in obj.subsystems[upstream].Z])
+                # self.V = np.array([[val] for \
+                #     val in obj.subsystems[upstream].Z])
 
     def update_Psi(self, obj):
         # TODO: figure out how to make this work when z is more than one value
@@ -357,13 +367,14 @@ class subsystem():
 
     def update_x(self):
         # TODO: add in self.d to class
-        self.x1 = dot(self.A, self.x0) + dot(self.Bu, tp(np.array(self.uConv[0:self.nyBu]))) \
+        self.x1 = dot(self.A, self.x0) \
+            + dot(self.Bu, tp(np.array(self.uConv[0:self.nyBu]))) \
             + dot(self.Bv, self.V[0:len(self.upstream)]) + dot(self.Bd, self.d)
-
         self.x0 = self.x1
 
     def update_y(self):
-        self.y = dot(self.Cy, self.x0) + dot(self.Dyu, tp(self.uConv[0:self.nyDyu])) \
+        self.y = dot(self.Cy, self.x0) \
+            + dot(self.Dyu, tp(self.uConv[0:self.nyDyu])) \
             + dot(self.Dyv, self.V[0:len(self.upstream)])
 
     def update_Y(self):
@@ -377,7 +388,9 @@ class subsystem():
     def sys_matrices(self):       
         self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
                   for i in range(1, self.horiz_len + 1)])
-        self.Fy = np.reshape(self.Fy, (self.nxCy*self.horiz_len, self.nxA), order='C')
+        self.Fy = np.reshape(
+            self.Fy, (self.nxCy*self.horiz_len, self.nxA), order='C'
+        )
         # if self.Fy[0].ndim > 1:
         #     self.Fy = np.concatenate(self.Fy, axis=0)
         # else:
@@ -398,14 +411,18 @@ class subsystem():
         # for i in range(1, self.horiz_len):
         #     if Mytmp.ndim == 1:
         #         Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
-        #             dot(matpower(self.A, i), self.Bu )), Mytmp[:-self.nyBu]))))
+        #             dot(
+        #                 matpower(self.A, i), self.Bu )), Mytmp[:-self.nyBu])))
+        #             )
         #     else:
         #         if dot(self.Cy, dot(matpower(self.A, i), self.Bu )).ndim == 1:
         #             Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
-        #                 dot(matpower(self.A, i), self.Bu )), Mytmp[-self.nxCy:,:-self.nyBu][0]))))
+        #                 dot(matpower(self.A, i), self.Bu )), 
+        #                       Mytmp[-self.nxCy:,:-self.nyBu][0]))))
         #         else:
         #             Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
-        #                 dot(matpower(self.A, i), self.Bu )), Mytmp[-self.nxCy:,:-self.nyBu]))))
+        #                 dot(matpower(self.A, i), self.Bu )), 
+        #                       Mytmp[-self.nxCy:,:-self.nyBu]))))
         # self.My = Mytmp
 
         Mytmp = dot(self.Cy, self.Bu) + self.Dyu
@@ -419,11 +436,21 @@ class subsystem():
                     dot(matpower(self.A, i), self.Bu )), Mytmp[:-self.nyBu]))))
             else:
                 if dot(self.Cy, dot(matpower(self.A, i), self.Bu )).ndim == 1:
-                    Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
-                        dot(matpower(self.A, i), self.Bu )), Mytmp[-self.nxCy:,:-self.nyBu][0]))))
+                    Mytmp = np.vstack(
+                        Mytmp,
+                        np.hstack(
+                            dot(self.Cy, dot(matpower(self.A, i), self.Bu )),
+                            Mytmp[-self.nxCy:,:-self.nyBu][0]
+                        )
+                    )
                 else:
-                    Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
-                        dot(matpower(self.A, i), self.Bu )), Mytmp[-self.nxCy:,:-self.nyBu]))))
+                    Mytmp = np.vstack(
+                        Mytmp,
+                        np.hstack(
+                            dot(self.Cy, dot(matpower(self.A, i), self.Bu )),
+                            Mytmp[-self.nxCy:,:-self.nyBu]
+                        )
+                    )
         self.My = Mytmp
 
         Mztmp0 = self.Dzu
@@ -436,15 +463,30 @@ class subsystem():
         Mztmp = np.vstack((Mztmp0, Mztmp))
         for i in range(1, self.horiz_len - 1):
             if Mztmp.ndim == 1:
-                Mztmp = np.vstack((Mztmp, np.hstack((dot(self.Cz, \
-                    dot(matpower(self.A, i), self.Bu )), Mztmp[-self.nyBu+1:]))))
+                Mztmp = np.vstack(
+                    Mztmp,
+                    np.hstack(
+                        dot(self.Cz, dot(matpower(self.A, i), self.Bu )),
+                        Mztmp[-self.nyBu+1:]
+                    )
+                )
             else:
                 if dot(self.Cz, dot(matpower(self.A, i), self.Bu )).ndim == 1:
-                    Mztmp = np.vstack((Mztmp, np.hstack((dot(self.Cz, \
-                        dot(matpower(self.A, i), self.Bu )), Mztmp[-self.nxCz:,:-self.nyBu][0]))))
+                    Mztmp = np.vstack(
+                        Mztmp,
+                        np.hstack(
+                            dot(self.Cz, dot(matpower(self.A, i), self.Bu )),
+                            Mztmp[-self.nxCz:,:-self.nyBu][0]
+                        )
+                    )
                 else:
-                    Mztmp = np.vstack((Mztmp, np.hstack((dot(self.Cz, \
-                        dot(matpower(self.A, i), self.Bu )), Mztmp[-self.nxCz:,:-self.nyBu]))))
+                    Mztmp = np.vstack(
+                        Mztmp,
+                        np.hstack(
+                            dot(self.Cz, dot(matpower(self.A, i), self.Bu )),
+                            Mztmp[-self.nxCz:,:-self.nyBu]
+                        )
+                    )
         self.Mz = Mztmp
 
         # TODO: need to update with Dyv
@@ -458,11 +500,21 @@ class subsystem():
                     dot(matpower(self.A, i), self.Bv )), Nytmp[:-self.nyBv]))))
             else:
                 if dot(self.Cy, dot(matpower(self.A, i), self.Bv )).ndim == 1:
-                    Nytmp = np.vstack((Nytmp, np.hstack((dot(self.Cy, \
-                        dot(matpower(self.A, i), self.Bv )), Nytmp[-self.nxCy:,:-self.nyBv][0]))))
+                    Nytmp = np.vstack(
+                        Nytmp,
+                        np.hstack(
+                            dot(self.Cy, dot(matpower(self.A, i), self.Bv )),
+                            Nytmp[-self.nxCy:,:-self.nyBv][0]
+                    )
+                )
                 else:
-                    Nytmp = np.vstack((Nytmp, np.hstack((dot(self.Cy, \
-                        dot(matpower(self.A, i), self.Bv )), Nytmp[-self.nxCy:,:-self.nyBv]))))
+                    Nytmp = np.vstack(
+                        Nytmp,
+                        np.hstack(
+                            dot(self.Cy, dot(matpower(self.A, i), self.Bv )),
+                            Nytmp[-self.nxCy:,:-self.nyBv]
+                        )
+                    )
         self.Ny = Nytmp
 
         Nztmp = dot(self.Cz, self.Bv)
@@ -477,11 +529,21 @@ class subsystem():
                     dot(matpower(self.A, i), self.Bv )), Nztmp[:-self.nyBv]))))
             else:
                 if dot(self.Cz, dot(matpower(self.A, i), self.Bv )).ndim == 1:
-                    Nztmp = np.vstack((Nztmp, np.hstack((dot(self.Cz, \
-                        dot(matpower(self.A, i), self.Bv )), Nztmp[-self.nxCz:,:-self.nyBv][0]))))
+                    Nztmp = np.vstack(
+                        Nztmp,
+                        np.hstack(
+                            dot(self.Cz, dot(matpower(self.A, i), self.Bv )),
+                            Nztmp[-self.nxCz:,:-self.nyBv][0]
+                        )
+                    )
                 else:
-                    Nztmp = np.vstack((Nztmp, np.hstack((dot(self.Cz, \
-                        dot(matpower(self.A, i), self.Bv )), Nztmp[-self.nxCz:,:-self.nyBv]))))
+                    Nztmp = np.vstack(
+                        Nztmp,
+                        np.hstack(
+                            dot(self.Cz, dot(matpower(self.A, i), self.Bv )),
+                            Nztmp[-self.nxCz:,:-self.nyBv]
+                        )
+                    )
         self.Nz = Nztmp
 
         if self.Fy.ndim == 1:
