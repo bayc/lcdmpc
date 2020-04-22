@@ -32,52 +32,53 @@ class bldg_sim_mdl:
         self.R_ea_inv = np.array([[22.2297201]]) # external wal to outside air resistance inverse
         
         # Uncertainty matrices
-        self.P = np.array([[]]) # covariance matrix of the building states
+        self.P = np.array([[2,0],[0,2]]) # covariance matrix of the building states
         self.R = 0.1 # variance in room temperature measurement
+        
+    def HJacobian_at(x):
+    """ compute Jacobian of H matrix at x """
+    return np.array ([[1.,0.]])
+
+    def Hx(x):
+    """ compute output as a function of states
+    """
+    return x[0][0]
     
-    def bldg_sim_filter_update(self,n_steps = 6, EP_data):
+    def bldg_sim_filter_update(self,EP_data,n_steps = 6, R=None, \
+                               args=(), hx_args=(), residual=np.subtract):
         # Run filter update at start of each day for n_filter_steps to match initial 
         #conditions with E+ simulation
+        
+        # arguments for Jacobian of H matrix 
         if not isinstance(args, tuple):
             args = (args,)
+        # arguments for hx
         if not isinstance(hx_args, tuple):
             hx_args = (hx_args,)
-
+        # output measurement coviariance
         if R is None:
             R = self.R
-
-        if np.isscalar(z) and self.dim_z == 1:
-            z = np.asarray([z], float)
+            
+        # apply filter update n_steps times
+        for i in range(n_steps):
+            EP_inputs = EP_data[self.i_sim,1:]
+            T_r_EP = EP_data[self.i_sim,:][0]
+            z = np.asarray([z], float) # output value for Kalman filter update
             
      # Calculating Kalman filter gain
-        H = HJacobian(self.x, *args)
-        PHT = dot(self.P, H.T)
-        self.S = dot(H, PHT) + R
-        self.K = PHT.dot(np.linalg.inv(self.S))
-        hx = Hx(self.x, *hx_args)
-        if n_pred > 1:
-            self.x_pred = copy.deepcopy(self.x)
-            self.res_pred = residual(z, hx)
-            for i in range(n_pred -1):
-                EP_data = self.get_data(EP_sim_data_pd2,k + i)
-                u = EP_data[1:]
-                self.x_pred = self.move(self.x_pred,u,self.dt)
-                if self.x_pred[0][0] > 12 and self.x_pred[0][0]< 35:
-                    self.res_pred += abs(residual(EP_sim_data_pd2.T_room[k+i+1], self.x_pred[0][0]))
-                else:
-                    self.res_pred += 15
-        self.res = residual(z, hx)
-        if n_pred > 1:
-            self.x[0] += dot(self.K[0], self.res)
-            self.x[1:] += dot(self.K[1:],self.res_pred)
-        else:
+            H = self.HJacobian(self.x, *args)
+            PHT = dot(self.P, H.T)
+            self.S = dot(H, PHT) + R
+            self.K = PHT.dot(np.linalg.inv(self.S))
+            hx = self.Hx(self.x, *hx_args)
+     # Measurement update applied to states
             self.x = self.x + dot(self.K, self.res)
-
-        # P = (I-KH)P(I-KH)' + KRK' is more numerically stable
-        # and works for non-optimal K vs the equation
-        # P = (I-KH)P usually seen in the literature.
-        I_KH = self._I - dot(self.K, H)
-        self.P = dot(I_KH, self.P).dot(I_KH.T) + dot(self.K, R).dot(self.K.T)
+            self.T_r = self.x[0][0]
+            self.T_e = self.x[1][0]
+            
+    # update covariance matrix
+            I_KH = self._I - dot(self.K, H)
+            self.P = dot(I_KH, self.P).dot(I_KH.T) + dot(self.K, R).dot(self.K.T)
         
     def bldg_simulation_step(self):
         # all inputs to the 3R2C model
