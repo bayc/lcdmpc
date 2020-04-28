@@ -32,17 +32,17 @@ class bldg_data_driven_mdl:
         # self.Dyv = np.array([[0.0]])
         # self.Dyd = np.array([[0.0, 0.0, 0.0]])
         self.A = np.array([[0.9931]])
-        self.Bu = np.array([[0.0008, 0.0, 0.0]]) # coefficients correspondig to Q_hvac (-ve value for cooling) - self.mean_inputs(4)
+        self.Bu = np.array([[0.0001263, 0.0, 0.0]]) # coefficients correspondig to Q_hvac (-ve value for cooling) - self.mean_inputs(4)
         self.Bv = np.array([[0.0]])
-        self.Bd = np.array([[0.001, 0.0017, 0.0016]]) #[T_out , Q_int, Q_solar] - self.mean_inputs(1:3)
+        self.Bd = np.array([[0.0004864, 0.0003279, 0.0003766]]) #[T_out , Q_int, Q_solar] - self.mean_inputs(0:2)
         self.Cy = np.array([[1.]])
         self.Dyu = np.array([[0.0, 0.0, 0.0]])
         self.Dyv = np.array([[0.0]])
         self.Dyd = np.array([[0.0, 0.0, 0.0]])
         self.K = 0.8826
         self.Bu_mean_inputs = np.array([0.0, 0.0, 0.0])
-        self.Bd_mean_inputs = np.array([19.96, 0.0, 0.0])
-        self.Cy_mean_outputs = 23.56
+        self.Bd_mean_inputs = np.array([26.3525, 0.0, 0.0])
+        self.Cy_mean_outputs = 22.794
 
         self.bldg_power_model(T_sa, ms_dot, T_oa + self.Bd_mean_inputs[0], T_z + self.Cy_mean_outputs)
 
