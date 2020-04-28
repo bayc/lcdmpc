@@ -39,7 +39,7 @@ class bldg_data_driven_mdl:
         self.Dyu = np.array([[0.0, 0.0, 0.0]])
         self.Dyv = np.array([[0.0]])
         self.Dyd = np.array([[0.0, 0.0, 0.0]])
-        self.K = 0.8826
+        self.K = 0.9998
         self.Bu_mean_inputs = np.array([0.0, 0.0, 0.0])
         self.Bd_mean_inputs = np.array([26.3525, 0.0, 0.0])
         self.Cy_mean_outputs = 22.794
