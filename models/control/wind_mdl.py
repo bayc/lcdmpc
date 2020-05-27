@@ -158,15 +158,21 @@ class wind_mdl:
         vars = [self.yaw_r, self.Ct_r]
         return [val for tup in zip(*vars) for val in tup]
 
-    def update_inputs(self, x0, d):
+    def update_inputs(self, x0):
         yaw = list(x0[0::2] + self.inputs[0])
         Ct = list(x0[1::2] + self.inputs[1])
-        ws = d[0]
-        wd = d[1]
-        self.inputs = [yaw, Ct, ws, wd]
+        # ws = d[0]
+        # wd = d[1]
+        # self.inputs = [yaw, Ct, ws, wd]
+        self.inputs = [yaw, Ct]
 
         print('new inputs for linearization: ', self.inputs)
-        return self.inputs
+        # return self.inputs
+
+    def update_disturbances(self, d):
+        ws = d[0]
+        wd = d[1]
+        self.d = [ws, wd]
 
     def update_var_group_init(self, var, lower, upper, value):
         self.var_group_init[var]['lower'] = lower

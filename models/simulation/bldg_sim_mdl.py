@@ -1,25 +1,28 @@
 import numpy as np
 
 class bldg_sim_mdl:
-    def __init__(self, dt, ms_dot, T_sa, Q_internal,Q_solar, T_oa, T_r,T_e):
+    def __init__(self, dt, ms_dot, T_sa, T_z, T_e, current_time):
     # bldg fan power coefficients
         self.a0 = 0.0029
         self.a1 = -0.0151
         self.a2 = 0.1403
         self.a3 = 0.0086
-        
+
         self.hvac_cop = 3 # hvac cop
-        
+
         # initial values of room air and wall temperatures
-        self.T_r = T_r
+        self.T_z = np.array(T_z)
         self.T_e = T_e
-        self.x = np.array([[T_r,T_e]]) # states for Kalman filter
-        
+        self.x = np.array([[T_z,T_e]]) # states for Kalman filter
+
         self.dt = 1/12 # timestep in hrs
-        self.i_sim = 0 # current simulation time index
-        # inputs = mass flow rate, supply air temp, internal heat (kW), solar gain (kW)
-        # , and outside air temperature 
-        self.inputs = [ms_dot, T_sa, Q_internal, Q_solar, T_oa]
+        self.i_sim = current_time # current simulation time index
+        # inputs = mass flow rate, supply air temp, internal heat (kW),
+        # solar gain (kW), and outside air temperature 
+        self.inputs = [ms_dot, T_sa]
+        # self.disturb = [T_oa, Q_internal, Q_solar]
+        self.disturb_keys = ['T_outside', 'Q_internal', 'Q_solar']
+
         self.reinit()
 
     def reinit(self):
@@ -35,19 +38,44 @@ class bldg_sim_mdl:
         self.P = np.array([[2,0],[0,2]]) # covariance matrix of the building states
         self.R = 0.1 # variance in room temperature measurement
         
+    def simulate(self, current_time, inputs, disturb):
+        self.i_sim = current_time
+        
+        ms_dot = inputs[1]
+        T_sa = inputs[2]
+
+        T_oa = disturb[0]
+        Q_int = disturb[1]
+        Q_solar = disturb[2]
+
+        T_z = self.bldg_simulation_step(ms_dot, T_sa, Q_int, Q_solar, T_oa)
+        self.outputs = T_z
+
+        return T_z
+
+    def get_forecast(self, current_time, disturbance_data):
+        # read in next set of forecast information
+        tmp = disturbance_data.iloc[[current_time]]
+        vars = []
+        for key in self.disturb_keys:
+            vars.append(tmp[key].values)
+
+        return [val for tup in zip(*vars) for val in tup]
+
     def HJacobian_at(x):
-    """ compute Jacobian of H matrix at x """
-    return np.array ([[1.,0.]])
+        """ compute Jacobian of H matrix at x
+        """
+        return np.array ([[1.,0.]])
 
     def Hx(x):
-    """ compute output as a function of states
-    """
-    return x[0][0]
+        """ compute output as a function of states
+        """
+        return x[0][0]
     
-    def bldg_sim_filter_update(self,EP_data,n_steps = 6, R=None, \
+    def bldg_sim_filter_update(self, EP_data, n_steps=6, R=None, \
                                args=(), hx_args=(), residual=np.subtract):
-        # Run filter update at start of each day for n_filter_steps to match initial 
-        #conditions with E+ simulation
+        # Run filter update at start of each day for n_filter_steps to match
+        # initial conditions with E+ simulation
         
         # arguments for Jacobian of H matrix 
         if not isinstance(args, tuple):
@@ -73,50 +101,76 @@ class bldg_sim_mdl:
             hx = self.Hx(self.x, *hx_args)
      # Measurement update applied to states
             self.x = self.x + dot(self.K, self.res)
-            self.T_r = self.x[0][0]
+            self.T_z = self.x[0][0]
             self.T_e = self.x[1][0]
             
     # update covariance matrix
             I_KH = self._I - dot(self.K, H)
-            self.P = dot(I_KH, self.P).dot(I_KH.T) + dot(self.K, R).dot(self.K.T)
+            self.P = dot(I_KH, self.P).dot(I_KH.T) \
+                     + dot(self.K, R).dot(self.K.T)
         
-    def bldg_simulation_step(self):
+    def bldg_simulation_step(self, ms_dot, T_sa, Q_int, Q_solar, T_oa):
         # all inputs to the 3R2C model
         dt = self.dt
-        ms_dot = self.inputs[0]
-        T_sa = self.inputs[1]
-        Q_hvac = ms_dot*(T_sa - self.T_r)
-        Q_internal = self.inputs[2]
-        Q_solar = self.inputs[3]
-        T_oa = inputs[4]
+        # ms_dot = self.inputs[0]
+        # T_sa = self.inputs[1]
+        Q_hvac = ms_dot*(T_sa - self.T_z)
+        print('Simulated Q_hvac: ', Q_hvac)
+        print('ms_dot: ', ms_dot)
+        print('T_sa: ', T_sa)
+        # T_oa = self.disturb[0]
+        # Q_int = self.disturb[1]
+        # Q_solar = self.disturb[2]        
         
         # 3R2C room temperature dynamics
-        dTr = dt*(self.C_r_inv*self.R_re_inv*(self.T_e - self.T_r) +\ # change in room temperature
-              self.C_r_inv*self.R_ra_inv*(T_oa - self.T_r) + \
-              self.C_r_inv*(Q_solar + Q_internal + Q_hvac))
+        # change in room temperature
+        dTz = dt*(self.C_r_inv*self.R_re_inv*(self.T_e - self.T_z) \
+              + self.C_r_inv*self.R_ra_inv*(T_oa - self.T_z) \
+              + self.C_r_inv*(Q_solar + Q_int + Q_hvac))
 
-        dTe = dt*(self.C_e_inv*self.R_re_inv*(self.T_r - self.T_e) + \ # change in wall temperature
-              self.C_e_inv*self.R_ea_inv*(T_oa - self.T_e) + \
-              self.C_e_inv*(Q_solar + Q_internal + Q_hvac))
+        # change in wall temperature
+        dTe = dt*(self.C_e_inv*self.R_re_inv*(self.T_z - self.T_e) \
+              + self.C_e_inv*self.R_ea_inv*(T_oa - self.T_e) \
+              + self.C_e_inv*(Q_solar + Q_int + Q_hvac))
     
         # update room and wall temperatres
-        self.T_r += dTr
+        print('dtz: ', dTz)
+        self.T_z = np.add(self.T_z, dTz)
         self.T_e += dTe
-        
+
+        print('T_z: ', self.T_z)
+
+        inputs = [ms_dot, T_sa, T_oa, self.T_z]
+        print('inputs for truth model: ', inputs)
+        P_fan = self.bldg_fan_power(inputs)
+        P_chiller = self.bldg_chiller_power(inputs)
+        self.P_bldg = P_fan + P_chiller
+
+        outputs = [self.T_z, self.P_bldg]
+
+        return outputs
+
     def bldg_fan_power(self, inputs):
         ms_dot = inputs[0]
-        P_fan = self.a0*ms_dot**3 + self.a1*ms_dot**2 + self.a0*ms_dot \
+        P_fan = self.a0*ms_dot**3 + self.a1*ms_dot**2 + self.a2*ms_dot \
               + self.a3
+        print('truth P_fan: ', P_fan)
         return P_fan
 
     def bldg_chiller_power(self, inputs):
+        print('truth chiller power inputs: ', inputs)
         ms_dot = inputs[0]
         T_sa = inputs[1]
         T_oa = inputs[2]
-        self.T_oa = T_oa
         T_z = inputs[3]
         T_ma = 0.3*T_oa + (1 - 0.3)*T_z
         P_chill = 1.005/self.hvac_cop*ms_dot*(T_ma - T_sa)
+        print('truth P_chill: ', P_chill)
         return P_chill
 
-        self.bldg_power_model(T_sa, ms_dot, T_oa + self.Bd_mean_inputs[0], T_z + self.Cy_mean_outputs)
+        # self.bldg_power_model(
+        #     T_sa,
+        #     ms_dot,
+        #     T_oa + self.Bd_mean_inputs[0],
+        #     T_z + self.Cy_mean_outputs
+        # )
