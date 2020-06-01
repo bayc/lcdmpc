@@ -12,6 +12,7 @@
 
 import numpy as np
 import pandas as pd
+import copy
 from numpy import dot as dot
 from numpy import transpose as tp
 from numpy.linalg import matrix_power as matpower
@@ -114,6 +115,8 @@ class LCDMPC():
         for subsys in self.subsystems:
             subsys.uConv = subsys.Beta*np.array(subsys.uConv) + \
                            (1 - subsys.Beta)*np.array(subsys.uOpt)
+            subsys.uConv[0::3] = np.array(subsys.uConv[1::3])*(np.array(subsys.uConv[2::3]) \
+                        - (subsys.control_model.truth_model_T_z))
             # subsys.uConv[1::3] = 1
             # subsys.uConv = subsys.uOpt
 
@@ -167,10 +170,17 @@ class subsystem():
                  nodeID=None, nodeName=None, optOptions=None):
         # self.Q = Q
         # self.S = S
+        # self.count = 0
+        self.current_time = current_time
         
         self.truth_model = truth_model
         self.control_model = control_model
-        self.refs = refs
+        self.refs = refs 
+        self.refs_const = copy.deepcopy(self.refs)
+        self.refs = self.refs - self.control_model.truth_model_Pwr \
+            + self.control_model.Cy_lin \
+            + self.control_model.Dyu_lin \
+            + self.control_model.Dyd_lin
         # print('initial refs: ', self.refs)
         self.horiz_len = horiz_len
         self.Beta = Beta
@@ -180,8 +190,8 @@ class subsystem():
         self.update_forecast(current_time)
 
         self.y = self.control_model.Cy_mean_outputs
-        self.refs_const = self.refs
         self.refs = self.refs*self.horiz_len
+        self.refs_const = self.refs_const*self.horiz_len
         print('refs: ', self.refs)
         self.relinearize(control_model, inputs, self.d, outputs)
 
@@ -213,7 +223,8 @@ class subsystem():
         self.uConv = self.u0
         self.u0_min = 0.0
         self.u0_max = 100.0
-        self.uOpt = []
+        # self.uOpt = []
+        self.uOpt = [-100, 0.8, 12.8]*self.horiz_len
         self.V = np.zeros(self.nyNy)
         self.D = np.zeros(self.nyPy)
         # self.V = np.array([[0.0] for _ in range(self.nyNy)])
@@ -230,6 +241,7 @@ class subsystem():
         print('self.x0 after filter update: ', self.x0)
 
     def simulate_truth(self, current_time, inputs, disturb):
+        self.current_time = current_time
         outputs = self.truth_model.simulate(current_time, inputs, disturb)
         print('outputs: ', outputs)
 
@@ -263,6 +275,18 @@ class subsystem():
 
         control_model.reinit(inputs, disturb)
 
+        if self.current_time == 165:
+            self.refs_const[1::2] = [self.refs_const[1] + 20]*self.horiz_len
+        if self.current_time == 180:
+            self.refs_const[1::2] = [self.refs_const[1] - 10]*self.horiz_len
+
+        self.refs = np.array(self.refs_const) \
+            - np.array([0, self.control_model.truth_model_Pwr]*self.horiz_len) \
+            + np.array([self.control_model.Cy_lin]*self.horiz_len).flatten() \
+            + np.array([self.control_model.Dyu_lin]*self.horiz_len).flatten() \
+            + np.array([self.control_model.Dyd_lin]*self.horiz_len).flatten()
+        print('**********Refs: ', self.refs)
+
         self.A = control_model.A
         self.Bu = control_model.Bu
         self.Bv = control_model.Bv
@@ -278,6 +302,11 @@ class subsystem():
 
         self.mat_sizes()
         self.sys_matrices()
+
+        print('size My: ', self.nxMy, self.nyMy)
+        print('size Ny: ', self.nxNy, self.nyNy)
+        print('size Py: ', self.nxPy, self.nyPy)
+        # lkj
 
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
 
@@ -340,12 +369,16 @@ class subsystem():
     def calc_obj(self):
 
         obj_func = (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
-                     + 2*dot(tp(self.uOpt), self.F)) #\
-                    #  + dot(dot(tp(self.V), self.E), self.V) \
-                    #  + 2*dot(tp(self.V), self.T))
+                     + 2*dot(tp(self.uOpt), self.F) \
+                     + dot(dot(tp(self.V), self.E), self.V) \
+                     + 2*dot(tp(self.V), self.T))
         # print('opt_control: ', self.uConv[:self.control_model.numDVs])
         # print('objective function: ', obj_func)
         print('self.Y: ', self.Y)
+        print('self.Dy: ', self.control_model.Cy)
+        print('self.My:', self.Fy)
+        
+        # print('********************UPDATE_Y: ', self.uConv)
         # print('UPDATEY SELF.D: ', self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ))
@@ -424,14 +457,31 @@ class subsystem():
     #     return optProb
 
     def update(self):
+        print('///////////////// ERROR: ', (dot(self.Fy, self.x0) \
+               + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+                    self.control_model.Bd_mean_inputs, self.horiz_len
+                )) + dot(self.My, self.uOpt) - self.refs))
+        print('rrrrrrrrrrrrrrrrrr refs: ', self.refs)
+        # print('wwwwwwwwwwwwwwwww Y in obj: ', dot(self.Fy, self.x0) \
+        #         + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         )) + dot(self.My, self.uOpt) \
+        #         + np.tile(self.control_model.Cy_mean_outputs, self.horiz_len) \
+        #         - np.tile(self.control_model.Cy_lin, self.horiz_len) \
+        #         - np.tile(self.control_model.Dyu_lin, self.horiz_len) \
+        #         - np.tile(self.control_model.Dyd_lin, self.horiz_len))
         self.H = dot(dot(tp(self.My), self.Q), self.My) + self.S
         self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
         self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
-               + dot(self.Ny, self.V) - self.refs)) \
+               + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+                    self.control_model.Bd_mean_inputs, self.horiz_len
+                )) - self.refs)) \
                + 0.5*dot(tp(self.Mz), self.Psi)
         self.T = dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) \
-               - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
+               + dot(self.Py, self.D - np.tile(
+                    self.control_model.Bd_mean_inputs, self.horiz_len
+                )) - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
 
     def calc_sens(self):
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \
@@ -481,6 +531,7 @@ class subsystem():
 
     def update_y(self):
         print('x0 statessssssssssssssssss: ', self.x0)
+        print('********************UPDATE_y: ', tp(self.uConv[0:self.nyDyu]))
         # print('UPDATE y SELF.d: ', self.d - self.control_model.Bd_mean_inputs)
         self.y = dot(self.Cy, self.x0) \
             + dot(self.Dyu, tp(self.uConv[0:self.nyDyu])) \
@@ -498,7 +549,7 @@ class subsystem():
         # print('UPDATEY SELF.D: ', self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ))
-        self.Y = dot(self.Fy, self.x0) + dot(self.My, self.uConv) \
+        self.Y = dot(self.Fy, self.x0) + dot(self.My, self.uOpt) \
             + dot(self.Ny, self.V) \
             + dot(
                 self.Py, self.D - np.tile(
@@ -538,8 +589,10 @@ class subsystem():
                 - np.tile(self.control_model.Dzd_lin, self.horiz_len)
 
     def sys_matrices(self):       
+        # self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
+        #           for i in range(1, self.horiz_len + 1)])
         self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
-                  for i in range(1, self.horiz_len + 1)])
+                  for i in range(0, self.horiz_len)])
         self.Fy = np.reshape(
             self.Fy, (self.nxCy*self.horiz_len, self.nxA), order='C'
         )
@@ -577,15 +630,23 @@ class subsystem():
         #                       Mytmp[-self.nxCy:,:-self.nyBu]))))
         # self.My = Mytmp
 
-        Mytmp = dot(self.Cy, self.Bu)
-        # print('Mytmp: ', Mytmp)
-        MytmpShape = np.shape(Mytmp)
-        Mytmp = np.hstack((Mytmp, self.Dyu))
-        # print('(((((((((((((((( combo of CyBU and Dy: ', Mytmp)
+        Mytmp0 = self.Dyu
+        Mytmp0Shape = np.shape(Mytmp0)
+        Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))
+        for i in range(self.horiz_len - 1):
+            Mytmp0 = np.hstack((Mytmp0, np.zeros(Mytmp0Shape)))
         for i in range(self.horiz_len - 2):
-            Mytmp = np.hstack((Mytmp, np.zeros(MytmpShape)))
+            Mytmp = np.hstack((Mytmp, np.zeros(Mytmp0Shape)))
+        Mytmp = np.vstack((Mytmp0, Mytmp))
+        # Mytmp = dot(self.Cy, self.Bu)
+        # # print('Mytmp: ', Mytmp)
+        # MytmpShape = np.shape(Mytmp)
+        # Mytmp = np.hstack((Mytmp, self.Dyu))
+        # # print('(((((((((((((((( combo of CyBU and Dy: ', Mytmp)
+        # for i in range(self.horiz_len - 2):
+        #     Mytmp = np.hstack((Mytmp, np.zeros(MytmpShape)))
         # print('////////////////// 1st row of My: ', Mytmp)
-        for i in range(1, self.horiz_len):
+        for i in range(1, self.horiz_len - 1):
             if Mytmp.ndim == 1:
                 Mytmp = np.vstack((Mytmp, np.hstack((dot(self.Cy, \
                     dot(matpower(self.A, i), self.Bu )), Mytmp[:-self.nyBu+1]))))
@@ -707,11 +768,22 @@ class subsystem():
                     )
         self.Nz = Nztmp
 
-        Pytmp = dot(self.Cy, self.Bd)
-        PytmpShape = np.shape(Pytmp)
+
+        Pytmp0 = self.Dyd
+        Pytmp0Shape = np.shape(Pytmp0)
+        Pytmp = np.hstack((dot(self.Cy, self.Bd), Pytmp0))
         for i in range(self.horiz_len - 1):
-            Pytmp = np.hstack((Pytmp, np.zeros(PytmpShape)))
-        for i in range(1, self.horiz_len):
+            Pytmp0 = np.hstack((Pytmp0, np.zeros(Pytmp0Shape)))
+        for i in range(self.horiz_len - 2):
+            Pytmp = np.hstack((Pytmp, np.zeros(Pytmp0Shape)))
+        Pytmp = np.vstack((Pytmp0, Pytmp))
+
+        # Pytmp = dot(self.Cy, self.Bd)
+        # PytmpShape = np.shape(Pytmp)
+        # for i in range(self.horiz_len - 1):
+        #     Pytmp = np.hstack((Pytmp, np.zeros(PytmpShape)))
+
+        for i in range(1, self.horiz_len - 1):
             if Pytmp.ndim == 1:
                 Pytmp = np.vstack((Pytmp, np.hstack((dot(self.Cy, \
                     dot(matpower(self.A, i), self.Bd )), Pytmp[:-self.nyBd]))))
@@ -734,12 +806,23 @@ class subsystem():
                     )
         self.Py = Pytmp
 
-        Pztmp = dot(self.Cz, self.Bd)
-        PztmpShape = np.shape(Pztmp)
+
+        Pztmp0 = self.Dzd
+        Pztmp0Shape = np.shape(Pztmp0)
+        Pztmp = np.hstack((dot(self.Cz, self.Bd), Pztmp0))
         for i in range(self.horiz_len - 1):
-            Pztmp = np.hstack((Pztmp, np.zeros(PztmpShape)))
-        Pztmp0 = np.zeros(np.shape(Pztmp))
+            Pztmp0 = np.hstack((Pztmp0, np.zeros(Pztmp0Shape)))
+        for i in range(self.horiz_len - 2):
+            Pztmp = np.hstack((Pztmp, np.zeros(Pztmp0Shape)))
         Pztmp = np.vstack((Pztmp0, Pztmp))
+
+        # Pztmp = dot(self.Cz, self.Bd)
+        # PztmpShape = np.shape(Pztmp)
+        # for i in range(self.horiz_len - 1):
+        #     Pztmp = np.hstack((Pztmp, np.zeros(PztmpShape)))
+        # Pztmp0 = np.zeros(np.shape(Pztmp))
+        # Pztmp = np.vstack((Pztmp0, Pztmp))
+
         for i in range(1, self.horiz_len - 1):
             if Pztmp.ndim == 1:
                 Pztmp = np.vstack((Pztmp, np.hstack((dot(self.Cz, \
@@ -820,9 +903,15 @@ class subsystem():
             self.nyPz = np.shape(self.Pz)[1]
 
         # TODO: make this work for user-supplied Q's and S's
-        self.Q = np.diag(np.ones(self.nxMy)*1.0e3)
+        self.Q = np.diag(np.ones(self.nxMy)*1e3)
+        # Set penalties for temperature to zero
         for i in np.arange(0, len(self.Q), 2):
             self.Q[i] = np.zeros(self.nxMy)
+
+        # Set penalty for last power to zero
+        self.Q[-1] = np.zeros(self.nxMy)
+        # self.Q[3::2] = np.zeros(self.nxMy)
+
         self.S = np.diag(np.zeros(self.nyMy)*1.0e-3)
 
     def mat_sizes(self):

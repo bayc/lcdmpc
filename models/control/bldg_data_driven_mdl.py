@@ -18,7 +18,7 @@ class bldg_data_driven_mdl:
         self.disturb_keys = ['T_outside', 'Q_internal', 'Q_solar']
 
         self.truth_model_T_z = np.array(T_z)
-        self.truth_model_Pwr = np.array(46.2484)
+        self.truth_model_Pwr = np.array(20.)
         inputs = [ms_dot, T_sa, T_z]
         # disturbances = [T_oa, Q_int, Q_solar]
         disturbances = np.zeros(len(self.disturb_keys))

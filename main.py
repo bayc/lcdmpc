@@ -26,7 +26,7 @@ dt = 5          # Time-step in minutes
 tmp = opt.LCDMPC(start_time, dt)
 
 time = 240       # Length of simulation in minutes
-horiz_len = 5   # Prediction horizion length
+horiz_len = 2   # Prediction horizion length
 commuincation_iterations = 1
 Beta = 0.0      # Convex combination parameter for control action
 
@@ -47,7 +47,7 @@ disturb2 = [6.0, 2.0, 2.0]
 outputs1 = [1]
 outputs2 = [1]
 
-refs1 = [-4., 5.]
+refs1 = [-4., 35.]
 # refs2 = [-1]
 
 bldg1_disturb_file = 'input/ROM_simulation_data.csv'
