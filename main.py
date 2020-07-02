@@ -17,10 +17,11 @@ import matplotlib.pyplot as plt
 
 from models.control.bldg_data_driven_mdl import bldg_data_driven_mdl
 from models.simulation.bldg_sim_mdl import bldg_sim_mdl
+from models.control.grid_aggregator import grid_aggregator
 # from models.control.wind_mdl import wind_mdl
 # from floris.floris import Floris
 
-start_time = 150
+start_time = 750 # Start time in minutes
 dt = 5          # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
@@ -28,7 +29,9 @@ tmp = opt.LCDMPC(start_time, dt)
 time = 240       # Length of simulation in minutes
 horiz_len = 2   # Prediction horizion length
 commuincation_iterations = 1
-Beta = 0.0      # Convex combination parameter for control action
+Beta = 0.5      # Convex combination parameter for control action
+
+time_array = np.arange(start_time, (start_time + time), dt)
 
 ms_dot = 8.0
 T_sa = 12.8
@@ -47,15 +50,21 @@ disturb2 = [6.0, 2.0, 2.0]
 outputs1 = [1]
 outputs2 = [1]
 
-refs1 = [-4., 35.]
+refs1 = [-4., 15.]
 # refs2 = [-1]
+
+num_downstream1 = 3
 
 bldg1_disturb_file = 'input/ROM_simulation_data.csv'
 
 bldg1_cont = bldg_data_driven_mdl(ms_dot, T_sa, T_z, horiz_len)
 # bldg2_cont = bldg_data_driven_mdl(ms_dot, T_sa, T_z, horiz_len)
 
-bldg1_truth = bldg_sim_mdl(dt, ms_dot, T_sa, T_z, T_e, start_time)
+bldg1_truth = bldg_sim_mdl(dt/12, ms_dot, T_sa, T_z, T_e, start_time)
+
+grid_agg1_cont = grid_aggregator(horiz_len, num_downstream1)
+grid_agg1_truth = grid_aggregator(horiz_len, num_downstream1)
+
 
 ### WIND MODEL ###
 
@@ -75,6 +84,9 @@ bldg1_truth = bldg_sim_mdl(dt, ms_dot, T_sa, T_z, T_e, start_time)
 # wind1 = wind_mdl(input_file, yaw, Ct, ws, wd, horiz_len)
 
 tmp.build_subsystem(bldg1_cont, bldg1_truth, 
+    inputs, outputs1, refs1, horiz_len, Beta, bldg1_disturb_file)
+
+tmp.build_subsystem(grid_agg1_cont, grid_agg1_truth, 
     inputs, outputs1, refs1, horiz_len, Beta, bldg1_disturb_file)
 
 # tmp.subsystems[0].Uconv = [ms_dot, T_sa]
@@ -172,21 +184,31 @@ np.set_printoptions(suppress=True)
 
 print('P_bldg: ', P_bldg)
 
-T_lower = 21.0
-T_upper = 25.0
+T_lower = 21.5
+T_upper = 24.5
 P_lower = 0.0
 P_upper = 100.0
 
-plt.figure()
-plt.plot(np.array(T_bldg).flatten())
-plt.plot(T_lower*np.ones(len(T_bldg)))
-plt.plot(T_upper*np.ones(len(T_bldg)))
-plt.title('Building Temperature')
+fig, axes = plt.subplots(1, 2, figsize=(12,5))
+ax1 = axes[0]
+ax1.plot(time_array, np.array(T_bldg).flatten(), '-b')
+ax1.plot(time_array, T_lower*np.ones(len(T_bldg)), '--k')
+ax1.plot(time_array, T_upper*np.ones(len(T_bldg)), '--k')
+ax1.legend(['Zone Temp', 'Temp Constraints'])
+xticks = ax1.get_xticks()
+ax1.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
+ax1.set_title('Building Temperature')
+ax1.set_ylabel('Temperature [C]')
+ax1.set_xlabel('Time')
 
-plt.figure()
-plt.plot(np.array(P_bldg).flatten())
-plt.plot(P_lower*np.ones(len(P_bldg)))
-plt.plot(P_upper*np.ones(len(P_bldg)))
-plt.title('Building Power')
+ax2 = axes[1]
+ax2.plot(time_array, np.array(P_bldg).flatten(), '-b')
+ax2.plot(time_array, [val[1] for val in tmp.subsystems[0].refs_plot[1:]], '--r')
+ax2.legend(['Bldg Power', 'Power Ref'])
+xticks = ax2.get_xticks()
+ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
+ax2.set_title('Building Power')
+ax2.set_ylabel('Power [kw]')
+ax2.set_xlabel('Time')
 
 plt.show()

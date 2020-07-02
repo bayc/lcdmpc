@@ -115,6 +115,21 @@ class bldg_data_driven_mdl:
         print('post-states: ', states + self.Cy_mean_outputs[0])
         return states[0]
 
+    def process_refs(self, refs):
+        refs = refs - self.truth_model_Pwr \
+            + self.Cy_lin \
+            + self.Dyu_lin \
+            + self.Dyd_lin
+        return refs
+
+    def process_refs_horiz(self, refs, refs_const):
+        refs = np.array(refs_const) \
+            - np.array([0, self.truth_model_Pwr]*self.horiz_len) \
+            + np.array([self.Cy_lin]*self.horiz_len).flatten() \
+            + np.array([self.Dyu_lin]*self.horiz_len).flatten() \
+            + np.array([self.Dyd_lin]*self.horiz_len).flatten()
+        return refs
+
     def get_forecast(self, current_time, disturbance_data):
         # read in next set of forecast information
         tmp = disturbance_data.iloc[current_time:current_time + self.horiz_len]
@@ -154,7 +169,7 @@ class bldg_data_driven_mdl:
     def add_con_group(self, optProb):
         optProb.addConGroup('hvac_con', self.horiz_len, lower=0, upper=0)
         optProb.addConGroup(
-            'T_building_con', self.horiz_len, lower=21, upper=25
+            'T_building_con', self.horiz_len, lower=21.5, upper=24.5
         )
 
         return optProb

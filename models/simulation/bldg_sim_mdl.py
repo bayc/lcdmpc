@@ -15,7 +15,7 @@ class bldg_sim_mdl:
         self.T_e = T_e
         self.x = np.array([[T_z,T_e]]) # states for Kalman filter
 
-        self.dt = 1/12 # timestep in hrs
+        self.dt = dt # timestep in hrs
         self.i_sim = current_time # current simulation time index
         # inputs = mass flow rate, supply air temp, internal heat (kW),
         # solar gain (kW), and outside air temperature 
@@ -112,15 +112,7 @@ class bldg_sim_mdl:
     def bldg_simulation_step(self, ms_dot, T_sa, Q_int, Q_solar, T_oa):
         # all inputs to the 3R2C model
         dt = self.dt
-        # ms_dot = self.inputs[0]
-        # T_sa = self.inputs[1]
-        Q_hvac = ms_dot*(T_sa - self.T_z)
-        print('Simulated Q_hvac: ', Q_hvac)
-        print('ms_dot: ', ms_dot)
-        print('T_sa: ', T_sa)
-        # T_oa = self.disturb[0]
-        # Q_int = self.disturb[1]
-        # Q_solar = self.disturb[2]        
+        Q_hvac = ms_dot*(T_sa - self.T_z) 
         
         # 3R2C room temperature dynamics
         # change in room temperature
@@ -133,15 +125,11 @@ class bldg_sim_mdl:
               + self.C_e_inv*self.R_ea_inv*(T_oa - self.T_e) \
               + self.C_e_inv*(Q_solar + Q_int + Q_hvac))
     
-        # update room and wall temperatres
-        print('dtz: ', dTz)
+        # update room and wall temperatures
         self.T_z = np.add(self.T_z, dTz)
         self.T_e += dTe
 
-        print('T_z: ', self.T_z)
-
         inputs = [ms_dot, T_sa, T_oa, self.T_z]
-        print('inputs for truth model: ', inputs)
         P_fan = self.bldg_fan_power(inputs)
         P_chiller = self.bldg_chiller_power(inputs)
         self.P_bldg = P_fan + P_chiller
@@ -154,18 +142,15 @@ class bldg_sim_mdl:
         ms_dot = inputs[0]
         P_fan = self.a0*ms_dot**3 + self.a1*ms_dot**2 + self.a2*ms_dot \
               + self.a3
-        print('truth P_fan: ', P_fan)
         return P_fan
 
     def bldg_chiller_power(self, inputs):
-        print('truth chiller power inputs: ', inputs)
         ms_dot = inputs[0]
         T_sa = inputs[1]
         T_oa = inputs[2]
         T_z = inputs[3]
         T_ma = 0.3*T_oa + (1 - 0.3)*T_z
         P_chill = 1.005/self.hvac_cop*ms_dot*(T_ma - T_sa)
-        print('truth P_chill: ', P_chill)
         return P_chill
 
         # self.bldg_power_model(

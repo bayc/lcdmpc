@@ -172,15 +172,17 @@ class subsystem():
         # self.S = S
         # self.count = 0
         self.current_time = current_time
+        self.refs_plot = []
         
         self.truth_model = truth_model
         self.control_model = control_model
         self.refs = refs 
         self.refs_const = copy.deepcopy(self.refs)
-        self.refs = self.refs - self.control_model.truth_model_Pwr \
-            + self.control_model.Cy_lin \
-            + self.control_model.Dyu_lin \
-            + self.control_model.Dyd_lin
+        self.refs = self.control_model.process_refs(self.refs)
+        # self.refs = self.refs - self.control_model.truth_model_Pwr \
+        #     + self.control_model.Cy_lin \
+        #     + self.control_model.Dyu_lin \
+        #     + self.control_model.Dyd_lin
         # print('initial refs: ', self.refs)
         self.horiz_len = horiz_len
         self.Beta = Beta
@@ -275,17 +277,21 @@ class subsystem():
 
         control_model.reinit(inputs, disturb)
 
-        if self.current_time == 165:
-            self.refs_const[1::2] = [self.refs_const[1] + 20]*self.horiz_len
-        if self.current_time == 180:
-            self.refs_const[1::2] = [self.refs_const[1] - 10]*self.horiz_len
+        # if self.current_time == 165:
+        #     self.refs_const[1::2] = [self.refs_const[1] + 20]*self.horiz_len
+        # if self.current_time == 180:
+        #     self.refs_const[1::2] = [self.refs_const[1] - 10]*self.horiz_len
 
-        self.refs = np.array(self.refs_const) \
-            - np.array([0, self.control_model.truth_model_Pwr]*self.horiz_len) \
-            + np.array([self.control_model.Cy_lin]*self.horiz_len).flatten() \
-            + np.array([self.control_model.Dyu_lin]*self.horiz_len).flatten() \
-            + np.array([self.control_model.Dyd_lin]*self.horiz_len).flatten()
+        self.refs = self.control_model.process_refs_horiz(
+            self.refs, self.refs_const
+        )
+        # self.refs = np.array(self.refs_const) \
+        #     - np.array([0, self.control_model.truth_model_Pwr]*self.horiz_len) \
+        #     + np.array([self.control_model.Cy_lin]*self.horiz_len).flatten() \
+        #     + np.array([self.control_model.Dyu_lin]*self.horiz_len).flatten() \
+        #     + np.array([self.control_model.Dyd_lin]*self.horiz_len).flatten()
         print('**********Refs: ', self.refs)
+        self.refs_plot.append(self.refs_const[0:2])
 
         self.A = control_model.A
         self.Bu = control_model.Bu
@@ -410,11 +416,12 @@ class subsystem():
             ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
             ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
             ('hvac_con', 'Qhvac') : np.diag(np.ones(self.horiz_len)),
-            ('hvac_con', 'ms_dot') : -1*np.diag(self.uOpt[2::3] - self.truth_model.T_z.flatten()),
+            ('hvac_con', 'ms_dot') : -1*np.diag(self.uOpt[2::3] \
+                - self.truth_model.T_z.flatten()),
             ('hvac_con', 'T_sa') : np.diag(-1*np.array(self.uOpt[1::3])),
-            ('T_building_con', 'Qhvac') : self.My[:self.horiz_len, 0::3],
-            ('T_building_con', 'ms_dot') : self.My[:self.horiz_len, 1::3],
-            ('T_building_con', 'T_sa') : self.My[:self.horiz_len, 2::3]}
+            ('T_building_con', 'Qhvac') : self.My[0::2, 0::3],
+            ('T_building_con', 'ms_dot') : self.My[0::2, 1::3],
+            ('T_building_con', 'T_sa') : self.My[0::2, 2::3]}
         #     #  ('con1', 'Qhvac') : np.ones(5)*1.0,
         #     #  ('con1', 'ms_dot') : -1*np.ones(5)*self.T_sa[0],
         #     #  ('con1', 'T_sa') : -1*np.ones(5)*self.ms_dot[0]}
@@ -457,19 +464,6 @@ class subsystem():
     #     return optProb
 
     def update(self):
-        print('///////////////// ERROR: ', (dot(self.Fy, self.x0) \
-               + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
-                    self.control_model.Bd_mean_inputs, self.horiz_len
-                )) + dot(self.My, self.uOpt) - self.refs))
-        print('rrrrrrrrrrrrrrrrrr refs: ', self.refs)
-        # print('wwwwwwwwwwwwwwwww Y in obj: ', dot(self.Fy, self.x0) \
-        #         + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
-        #             self.control_model.Bd_mean_inputs, self.horiz_len
-        #         )) + dot(self.My, self.uOpt) \
-        #         + np.tile(self.control_model.Cy_mean_outputs, self.horiz_len) \
-        #         - np.tile(self.control_model.Cy_lin, self.horiz_len) \
-        #         - np.tile(self.control_model.Dyu_lin, self.horiz_len) \
-        #         - np.tile(self.control_model.Dyd_lin, self.horiz_len))
         self.H = dot(dot(tp(self.My), self.Q), self.My) + self.S
         self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
@@ -493,7 +487,6 @@ class subsystem():
             self.uConv[:self.control_model.numDVs],
             self.truth_model.outputs
         )
-        print('updated inputs: ', self.inputs)
 
     def update_disturbances(self):
         self.disturb = self.control_model.update_disturbances(self.d)
@@ -632,7 +625,12 @@ class subsystem():
 
         Mytmp0 = self.Dyu
         Mytmp0Shape = np.shape(Mytmp0)
+        print('shape Dyu: ', np.shape(self.Dyu))
+        print('shape Cy: ', np.shape(self.Cy))
+        print('shape Bu: ', np.shape(self.Bu))
+        print('shape Mytmp0: ', np.shape(Mytmp0))
         Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))
+        print('shape Mytmp: ', np.shape(Mytmp))
         for i in range(self.horiz_len - 1):
             Mytmp0 = np.hstack((Mytmp0, np.zeros(Mytmp0Shape)))
         for i in range(self.horiz_len - 2):
@@ -807,6 +805,9 @@ class subsystem():
         self.Py = Pytmp
 
 
+        print('shape Dzd: ', np.shape(self.Dzd))
+        print('shape Cz: ', np.shape(self.Cz))
+        print('shape Bd: ', np.shape(self.Bd))
         Pztmp0 = self.Dzd
         Pztmp0Shape = np.shape(Pztmp0)
         Pztmp = np.hstack((dot(self.Cz, self.Bd), Pztmp0))
@@ -814,6 +815,8 @@ class subsystem():
             Pztmp0 = np.hstack((Pztmp0, np.zeros(Pztmp0Shape)))
         for i in range(self.horiz_len - 2):
             Pztmp = np.hstack((Pztmp, np.zeros(Pztmp0Shape)))
+        print('shape Pztmp0: ', np.shape(Pztmp0))
+        print('shape Pztmp: ', np.shape(Pztmp))
         Pztmp = np.vstack((Pztmp0, Pztmp))
 
         # Pztmp = dot(self.Cz, self.Bd)
@@ -903,7 +906,7 @@ class subsystem():
             self.nyPz = np.shape(self.Pz)[1]
 
         # TODO: make this work for user-supplied Q's and S's
-        self.Q = np.diag(np.ones(self.nxMy)*1e3)
+        self.Q = np.diag(np.ones(self.nxMy))
         # Set penalties for temperature to zero
         for i in np.arange(0, len(self.Q), 2):
             self.Q[i] = np.zeros(self.nxMy)
