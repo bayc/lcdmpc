@@ -26,9 +26,9 @@ class grid_aggregator:
         self.Bv = np.eye(self.num_downstream)
         self.Bd = np.zeros((self.num_downstream, 1)) 
         
-        self.Bu_mean_inputs = np.zeros((self.num_downstream, 1))
-        self.Bd_mean_inputs = np.array([[0.0]])
-        self.Cy_mean_outputs = np.array([[0.0]])
+        self.Bu_mean_inputs = np.zeros((self.num_downstream, self.num_downstream))
+        self.Bd_mean_inputs = np.array([0.0])
+        self.Cy_mean_outputs = np.array([0.0])
         self.Cz_mean_outputs = np.zeros((self.num_downstream, 1))
 
         self.Cy = np.array([[1.0]*self.num_downstream])
@@ -87,3 +87,6 @@ class grid_aggregator:
 
     def process_refs_horiz(self, refs, refs_const):
         return refs
+
+    def sensitivity_func(self):
+        return 0.0

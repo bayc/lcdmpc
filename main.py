@@ -51,9 +51,10 @@ outputs1 = [1]
 outputs2 = [1]
 
 refs1 = [-4., 15.]
+refs_grid = [0.]
 # refs2 = [-1]
 
-num_downstream1 = 3
+num_downstream1 = 1
 
 bldg1_disturb_file = 'input/ROM_simulation_data.csv'
 
@@ -87,7 +88,7 @@ tmp.build_subsystem(bldg1_cont, bldg1_truth,
     inputs, outputs1, refs1, horiz_len, Beta, bldg1_disturb_file)
 
 tmp.build_subsystem(grid_agg1_cont, grid_agg1_truth, 
-    inputs, outputs1, refs1, horiz_len, Beta, bldg1_disturb_file)
+    inputs, outputs1, refs_grid, horiz_len, Beta, bldg1_disturb_file)
 
 # tmp.subsystems[0].Uconv = [ms_dot, T_sa]
 # outputs = tmp.simulate_truth_model()
@@ -112,8 +113,8 @@ tmp.build_subsystem(grid_agg1_cont, grid_agg1_truth,
 connections = [[0, 1], [1, 0]]
 # connections = [[1, 0]]
 
-# tmp.build_interconnections(interconnections=connections)
-tmp.build_interconnections(interconnections=None)
+tmp.build_interconnections(interconnections=connections)
+# tmp.build_interconnections(interconnections=None)
 
 cont1 = []
 out1 = []

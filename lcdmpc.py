@@ -83,6 +83,10 @@ class LCDMPC():
 
                 self.subsystems[up].downstream.append(down)
                 self.subsystems[down].upstream.append(up)
+            
+            for subsys in self.subsystems:
+                subsys.control_model.num_upstream = len(subsys.upstream)
+                subsys.control_model.num_downstream = len(subsys.downstream)
 
     def update_downstream_outputs(self):
         """
@@ -342,8 +346,8 @@ class subsystem():
         # optProb = self.add_constraints(optProb)
 
         opt = SNOPT(optOptions=self.optOptions)
-        sol = opt(optProb, sens=self.sens)
-        # sol = opt(optProb, sens='FDR')
+        # sol = opt(optProb, sens=self.sens)
+        sol = opt(optProb, sens='FDR')
         # sol = opt(optProb)
 
         self.sol = sol
@@ -395,6 +399,8 @@ class subsystem():
     def sens(self, varDict, funcs):
         # Parse the optimization variables defined in the control model file
         self.uOpt = self.control_model.parse_opt_vars(varDict)
+
+        funcsSens = self.control_model.sensitivity_func()
 
         funcsSens = {}
         # funcsSens = {
@@ -467,6 +473,22 @@ class subsystem():
         self.H = dot(dot(tp(self.My), self.Q), self.My) + self.S
         self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
+        print('My: ', np.shape(self.My))
+        print('Q: ', np.shape(self.Q))
+        print('Fy: ', np.shape(self.Fy))
+        print('x0: ', np.shape(self.x0))
+        print('Ny: ', np.shape(self.Ny))
+        print('V: ', np.shape(self.V))
+        print('Py: ', np.shape(self.Py))
+        print('D: ', np.shape(self.D))
+        print('Bd_mean_inputs: ', np.shape(self.control_model.Bd_mean_inputs))
+        print('refs: ', np.shape(self.refs))
+        print('special: ', np.shape(self.D - np.tile(
+                    self.control_model.Bd_mean_inputs, self.horiz_len
+                )))
+        print('tile: ', np.shape(np.tile(
+                    self.control_model.Bd_mean_inputs, self.horiz_len
+                )))
         self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
                + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
                     self.control_model.Bd_mean_inputs, self.horiz_len
