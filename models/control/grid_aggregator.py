@@ -50,16 +50,26 @@ class grid_aggregator:
         self.Dyd_lin = np.array([0.0])
         self.Dzd_lin = np.array([0.0])
 
+    def process_Q(self, Q):
+        return Q
+
+    def process_S(self, S):
+        return S
+
     def get_forecast(self, current_time, disturbance_data):
-        return np.array([0.0])
+        return np.array([[0.0]])
 
     def parse_opt_vars(self, varDict):
         self.bldg_Prefs = varDict['bldg_Prefs']
+        self.bldg_Prefs = np.array(self.bldg_Prefs).reshape(np.shape(self.bldg_Prefs)[0], 1)
+        # print('parse_opt_vars: ', np.shape(self.bldg_Prefs))
 
         return self.bldg_Prefs
 
     def parse_sol_vars(self, sol):
         self.bldg_Prefs = list(sol.getDVs().values())[0]
+        self.bldg_Prefs = np.array(self.bldg_Prefs).reshape(np.shape(self.bldg_Prefs)[0], 1)
+        # print('parse_sol_vars: ', np.shape(self.bldg_Prefs))
 
         return self.bldg_Prefs
 
@@ -86,7 +96,17 @@ class grid_aggregator:
         return refs
 
     def process_refs_horiz(self, refs, refs_const):
-        return refs
+        return np.array(refs).reshape(len(refs_const), 1)
 
     def sensitivity_func(self):
         return 0.0
+
+    def process_uConv(self, uConv):
+        return np.array(uConv).reshape(np.shape(uConv)[0], 1)
+
+    def simulate(self, current_time, inputs, disturb, v):
+        self.outputs = v
+        return v
+
+    def filter_update(self, states, outputs):
+        return states

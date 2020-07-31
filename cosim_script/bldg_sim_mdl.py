@@ -37,10 +37,10 @@ class bldg_sim_mdl:
         # Uncertainty matrices
         self.P = np.array([[2,0],[0,2]]) # covariance matrix of the building states
         self.R = 0.1 # variance in room temperature measurement
-        
-    def simulate(self, current_time, inputs, disturb):
+
+    def simulate(self, current_time, inputs, disturb, v):
         self.i_sim = current_time
-        
+
         ms_dot = inputs[1]
         T_sa = inputs[2]
 

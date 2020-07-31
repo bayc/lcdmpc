@@ -26,7 +26,7 @@ dt = 5          # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 240       # Length of simulation in minutes
+time = 80       # Length of simulation in minutes
 horiz_len = 2   # Prediction horizion length
 commuincation_iterations = 1
 Beta = 0.5      # Convex combination parameter for control action
@@ -50,8 +50,8 @@ disturb2 = [6.0, 2.0, 2.0]
 outputs1 = [1]
 outputs2 = [1]
 
-refs1 = [-4., 15.]
-refs_grid = [0.]
+refs1 = [-4., 25.]
+refs_grid = [10.]
 # refs2 = [-1]
 
 num_downstream1 = 1
@@ -122,6 +122,7 @@ cont2 = []
 out2 = []
 T_bldg = []
 P_bldg = []
+P_ref = []
 
 for i in range(int(time/dt)):
 
@@ -156,8 +157,11 @@ for i in range(int(time/dt)):
     outputs = tmp.simulate_truth_model()
     print('outputs in main.py: ', outputs)
 
-    T_bldg.append(outputs[0])
-    P_bldg.append(outputs[1])
+    # if i == 0:
+    #     T_bldg.append(outputs[0])
+    #     P_bldg.append(outputs[1])
+    # if i == 1:
+    #     P_ref.append(outputs)
 
     tmp.update_control_filter()
 
@@ -169,17 +173,17 @@ for i in range(int(time/dt)):
     cont1.append(tmp.subsystems[0].uConv)
     out1.append(tmp.subsystems[0].y)
 
-    # cont2.append(tmp.subsystems[1].uOpt[0:3])
-    # out2.append(tmp.subsystems[1].y)
+    cont2.append(tmp.subsystems[1].uConv)
+    out2.append(tmp.subsystems[1].y)
 
     print('+++++++++++++++++++++++++++++')
     print('time iteration: ', i)
     print('+++++++++++++++++++++++++++++')
 
-# print(cont1)
-# print(out1)
-# print(cont2)
-# print(out2)
+print('building control: ', cont1)
+print('building output: ', out1)
+print('grid control: ', cont2)
+print('grid output: ', out2)
 
 np.set_printoptions(suppress=True)
 

@@ -34,12 +34,12 @@ class LCDMPC():
 
     def simulate_truth_model(self):
         # apply control action and simulate truth models
-        
+        outputs = []
         for subsys in self.subsystems:
             u_applied = subsys.uConv[:subsys.control_model.numDVs]
             print('u_applied: ', u_applied)
             disturb = subsys.d
-            outputs = subsys.simulate_truth(self.current_time, u_applied, disturb)
+            outputs.append(subsys.simulate_truth(self.current_time, u_applied, disturb))
             print('outputs: ', outputs)
 
         # TODO: change to date-time; update in other places
@@ -119,10 +119,7 @@ class LCDMPC():
         for subsys in self.subsystems:
             subsys.uConv = subsys.Beta*np.array(subsys.uConv) + \
                            (1 - subsys.Beta)*np.array(subsys.uOpt)
-            subsys.uConv[0::3] = np.array(subsys.uConv[1::3])*(np.array(subsys.uConv[2::3]) \
-                        - (subsys.control_model.truth_model_T_z))
-            # subsys.uConv[1::3] = 1
-            # subsys.uConv = subsys.uOpt
+            subsys.process_uConv()
 
     def calculate_sensitivities(self):
         """
@@ -198,7 +195,6 @@ class subsystem():
         self.y = self.control_model.Cy_mean_outputs
         self.refs = self.refs*self.horiz_len
         self.refs_const = self.refs_const*self.horiz_len
-        print('refs: ', self.refs)
         self.relinearize(control_model, inputs, self.d, outputs)
 
         if upstream is not None:
@@ -222,43 +218,50 @@ class subsystem():
         else:
             self.optOptions = {'Major feasibility tolerance' : 1e-1}
 
-        self.x0 = np.zeros(self.nxA)
+        self.x0 = np.zeros((self.nxA, 1))
         # self.x0 = np.array([[0.0] for _ in range(self.nxA)])
         self.x1 = []
-        self.u0 = np.zeros(self.nyBu*self.horiz_len)
+        self.u0 = np.zeros((self.nyBu*self.horiz_len, 1))
         self.uConv = self.u0
         self.u0_min = 0.0
         self.u0_max = 100.0
         # self.uOpt = []
         self.uOpt = [-100, 0.8, 12.8]*self.horiz_len
-        self.V = np.zeros(self.nyNy)
-        self.D = np.zeros(self.nyPy)
+        self.uOpt = np.array(self.uOpt).reshape(len(self.uOpt), 1)
+        self.V = np.zeros((self.nyNy, 1))
+        self.D = np.zeros((self.nyPy, 1))
         # self.V = np.array([[0.0] for _ in range(self.nyNy)])
         
-        self.Z = np.zeros(self.nxNz)
-        self.Gamma = np.zeros(self.nxNz)
-        self.Psi = np.zeros(self.nxMz)
+        self.Z = np.zeros((self.nxNz, 1))
+        self.Gamma = np.zeros((self.nxNz, 1))
+        self.Psi = np.zeros((self.nxMz, 1))
         # print('initial horizon refs: ', self.refs)
         self.sol = []
 
     def update_control_filter(self):
-        print('self.y before filter: ', self.y)
+        # print('self.y before filter: ', self.y)
         self.x0 = self.control_model.filter_update(self.x0, self.truth_model.outputs)
-        print('self.x0 after filter update: ', self.x0)
+        # print('self.x0 after filter update: ', self.x0)
 
     def simulate_truth(self, current_time, inputs, disturb):
         self.current_time = current_time
-        outputs = self.truth_model.simulate(current_time, inputs, disturb)
-        print('outputs: ', outputs)
+        print(self.truth_model)
+        outputs = self.truth_model.simulate(
+            current_time,
+            inputs,
+            disturb,
+            self.V[:self.control_model.num_downstream]
+        )
+        # print('outputs: ', outputs)
 
         return outputs
 
     def update_forecast(self, current_time):
         # disturbance horizon
         self.d = self.truth_model.get_forecast(current_time, self.disturbance_data)
-        print('self.d: ', self.d)
+        # print('self.d: ', self.d)
         self.D = self.control_model.get_forecast(current_time, self.disturbance_data)
-        print('self.D: ', self.D)
+        # print('self.D: ', self.D)
 
     def relinearize(self, control_model, inputs, disturb, outputs):
 
@@ -294,7 +297,7 @@ class subsystem():
         #     + np.array([self.control_model.Cy_lin]*self.horiz_len).flatten() \
         #     + np.array([self.control_model.Dyu_lin]*self.horiz_len).flatten() \
         #     + np.array([self.control_model.Dyd_lin]*self.horiz_len).flatten()
-        print('**********Refs: ', self.refs)
+        # print('**********Refs: ', self.refs)
         self.refs_plot.append(self.refs_const[0:2])
 
         self.A = control_model.A
@@ -313,9 +316,9 @@ class subsystem():
         self.mat_sizes()
         self.sys_matrices()
 
-        print('size My: ', self.nxMy, self.nyMy)
-        print('size Ny: ', self.nxNy, self.nyNy)
-        print('size Py: ', self.nxPy, self.nyPy)
+        # print('size My: ', self.nxMy, self.nyMy)
+        # print('size Ny: ', self.nxNy, self.nyNy)
+        # print('size Py: ', self.nxPy, self.nyPy)
         # lkj
 
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
@@ -363,14 +366,20 @@ class subsystem():
         
         # Setup the objective function for LC-DMPC
         funcs = {}
+        # print('uOpt shape: ', np.shape(self.uOpt))
+        # print('self.H shape: ', np.shape(self.H))
+        # print('self.F shape: ', np.shape(self.F))
+        # print('self.V shape: ', np.shape(self.V))
+        # print('self.E shape: ', np.shape(self.E))
+        # print('self.T shape: ', np.shape(self.T))
         funcs['obj'] = (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
                      + 2*dot(tp(self.uOpt), self.F) \
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T))
-
+        # print('obj_func: ', np.shape(funcs['obj']))
         # Compute constraints, if any are defined for control model
         self.update_Y()
-        # print('self.Y: ', self.Y)
+        print('self.Y: ', self.Y)
         funcs = self.control_model.compute_cons(funcs, self.uOpt, self.Y)
 
         fail = False
@@ -384,15 +393,15 @@ class subsystem():
                      + 2*dot(tp(self.V), self.T))
         # print('opt_control: ', self.uConv[:self.control_model.numDVs])
         # print('objective function: ', obj_func)
-        print('self.Y: ', self.Y)
-        print('self.Dy: ', self.control_model.Cy)
-        print('self.My:', self.Fy)
+        # print('self.Y: ', self.Y)
+        # print('self.Dy: ', self.control_model.Cy)
+        # print('self.My:', self.Fy)
         
         # print('********************UPDATE_Y: ', self.uConv)
         # print('UPDATEY SELF.D: ', self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ))
-        print('UPDATEY uconv: ', self.V)
+        # print('UPDATEY uconv: ', self.V)
         # print('self.Psi: ', self.Psi)
         # print('self.V: ', self.V)
 
@@ -473,31 +482,65 @@ class subsystem():
         self.H = dot(dot(tp(self.My), self.Q), self.My) + self.S
         self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
-        print('My: ', np.shape(self.My))
-        print('Q: ', np.shape(self.Q))
-        print('Fy: ', np.shape(self.Fy))
-        print('x0: ', np.shape(self.x0))
-        print('Ny: ', np.shape(self.Ny))
-        print('V: ', np.shape(self.V))
-        print('Py: ', np.shape(self.Py))
-        print('D: ', np.shape(self.D))
-        print('Bd_mean_inputs: ', np.shape(self.control_model.Bd_mean_inputs))
-        print('refs: ', np.shape(self.refs))
-        print('special: ', np.shape(self.D - np.tile(
-                    self.control_model.Bd_mean_inputs, self.horiz_len
-                )))
-        print('tile: ', np.shape(np.tile(
-                    self.control_model.Bd_mean_inputs, self.horiz_len
+        # print('My: ', np.shape(self.My))
+        # print('Q: ', np.shape(self.Q))
+        # print('Fy: ', np.shape(self.Fy))
+        # print('x0: ', np.shape(self.x0))
+        # print('Ny: ', np.shape(self.Ny))
+        # print('V: ', np.shape(self.V))
+        # print('Py: ', np.shape(self.Py))
+        # print('D: ', np.shape(self.D))
+        # print('Bd_mean_inputs: ', np.shape(self.control_model.Bd_mean_inputs))
+        # print('refs: ', np.shape(self.refs))
+        # print('special: ', np.shape(self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         )))
+        # print('tile: ', np.shape(np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         )))
+        # print('Mz: ', np.shape(self.Mz))
+        # print('Psi: ', np.shape(self.Psi))
+        # print('1: ', np.shape(dot(tp(self.My), self.Q)))
+        # print('2: ', np.shape(dot(self.Fy, self.x0)))
+        # print('3: ', np.shape(dot(self.Ny, self.V)))
+        # print('4: ', np.shape(dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Py)[1], 1)) - self.refs))
+        # print('5: ', np.shape(dot(tp(self.Mz), self.Psi)))
+        # print('6: ', np.shape(dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
+        #        + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Py)[1], 1)) - self.refs))))
+        # self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
+        #        + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Py)[1], 1)) - self.refs)) \
+        #        + 0.5*dot(tp(self.Mz), self.Psi)
+        # print('shape My: ', np.shape(self.My))
+        # print('shape Q: ', np.shape(self.Q))
+        # print('shape Fy: ', np.shape(self.Fy))
+        # print('shape x0: ', np.shape(self.x0))
+        # print('shape Ny: ', np.shape(self.Ny))
+        # print('shape V: ', np.shape(self.V))
+        # print('shape Py: ', np.shape(self.Py))
+        # print('shape D: ', np.shape(self.D))
+        # print('shape tile: ', np.shape(np.tile(
+        #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+        #         )))
+        # print('shape refs: ', np.shape(self.refs))
+        print('Y: ', dot(self.Fy, self.x0) \
+               + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+                    self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
                 )))
         self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
                + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
-                    self.control_model.Bd_mean_inputs, self.horiz_len
+                    self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
                 )) - self.refs)) \
                + 0.5*dot(tp(self.Mz), self.Psi)
         self.T = dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) \
                + dot(self.Py, self.D - np.tile(
                     self.control_model.Bd_mean_inputs, self.horiz_len
-                )) - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
+                ).reshape(np.shape(self.Py)[1], 1)) - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
 
     def calc_sens(self):
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \
@@ -512,6 +555,9 @@ class subsystem():
 
     def update_disturbances(self):
         self.disturb = self.control_model.update_disturbances(self.d)
+
+    def process_uConv(self):
+        self.uConv = self.control_model.process_uConv(self.uConv)
 
     def update_subsys(self):
         self.update_x()
@@ -538,44 +584,103 @@ class subsystem():
 
     def update_x(self):
         # TODO: add in self.d to class
+        # print('shape of A:', np.shape(self.A))
+        # print('shape of x0:', np.shape(self.x0))
+        # print('shape of Bu:', np.shape(self.Bu))
+        # print('shape of self.uConv[0:self.nyBu]:', np.shape(self.uConv[0:self.nyBu]))
+        # print('shape of Bv:', np.shape(self.Bv))
+        # print('shape of V[0:len(self.upstream)]:', np.shape(self.V[0:len(self.upstream)]))
+        # print('shape of Bd:', np.shape(self.Bd))
+        # print('shape of d:', np.shape(self.d))
+        # print('shape of control_model.Bd_mean_inputs:', np.shape(self.control_model.Bd_mean_inputs))
         self.x1 = dot(self.A, self.x0) \
-            + dot(self.Bu, tp(np.array(self.uConv[0:self.nyBu]))) \
+            + dot(self.Bu, np.array(self.uConv[0:self.nyBu])) \
             + dot(self.Bv, self.V[0:len(self.upstream)]) + dot(self.Bd, self.d - self.control_model.Bd_mean_inputs)
         self.x0 = self.x1
-        print('self.x0 after update_x: ', self.x0)
+        # print('self.x0 after update_x: ', self.x0)
 
     def update_y(self):
-        print('x0 statessssssssssssssssss: ', self.x0)
-        print('********************UPDATE_y: ', tp(self.uConv[0:self.nyDyu]))
+        # print('x0 statessssssssssssssssss: ', self.x0)
+        # print('********************UPDATE_y: ', tp(self.uConv[0:self.nyDyu]))
         # print('UPDATE y SELF.d: ', self.d - self.control_model.Bd_mean_inputs)
+        # print('shape of Cy:', np.shape(self.Cy))
+        # print('shape of x0:', np.shape(self.x0))
+        # print('shape of Dyu:', np.shape(self.Dyu))
+        # print('shape of self.uConv[0:self.nyDyu]:', np.shape(self.uConv[0:self.nyDyu]))
+        # print('shape of Dyv:', np.shape(self.Dyv))
+        # print('shape of V[0:len(self.upstream)]:', np.shape(self.V[0:len(self.upstream)]))
+        # print('shape of Dyd:', np.shape(self.Dyd))
+        # print('shape of d:', np.shape(self.d))
+        # print('shape of control_model.Bd_mean_inputs:', np.shape(self.control_model.Bd_mean_inputs))
+        # print('shape of control_model.Cy_mean_outputs:', np.shape(self.control_model.Cy_mean_outputs))
         self.y = dot(self.Cy, self.x0) \
-            + dot(self.Dyu, tp(self.uConv[0:self.nyDyu])) \
+            + dot(self.Dyu, self.uConv[0:self.nyDyu]) \
             + dot(self.Dyv, self.V[0:len(self.upstream)]) \
             + dot(self.Dyd, self.d - self.control_model.Bd_mean_inputs) \
             + self.control_model.Cy_mean_outputs
+        print('self.y: ', self.y)
+        print('shape of self.y: ', np.shape(self.y))
+
         # self.y[1] = self.y[1] - dot(self.Dyu[1], tp(np.array([0., self.control_model.ms_dot_lin, self.control_model.T_sa_lin])))
         # self.y[1] = self.y[1] - dot(self.Dyd[1], np.array([self.control_model.T_oa_lin, 0., 0.]))
         # self.y[1] = self.y[1] - dot(self.Cy[1], self.control_model.T_z_lin)
 
+        # print('shape of Cy_lin: ', np.shape(self.control_model.Cy_lin))
+        # print('shape of Dyu_lin: ', np.shape(self.control_model.Dyu_lin))
+        # print('Dyu_lin: ', self.control_model.Dyu_lin)
+        # print('shape of Dyd_lin: ', np.shape(self.control_model.Dyd_lin))
         self.y = self.y - self.control_model.Cy_lin - self.control_model.Dyu_lin - self.control_model.Dyd_lin
-        print('sadfasdfasd: ', self.y)
+        # print('self.y: ', self.y)
+        # print('shape of self.y: ', np.shape(self.y))
+        # print('sadfasdfasd: ', self.y)
 
     def update_Y(self):
         # print('UPDATEY SELF.D: ', self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ))
+        # print('Fy: ', np.shape(self.Fy))
+        # print('x0: ', np.shape(self.x0))
+        # print('My: ', np.shape(self.My))
+        # print('Ny: ', np.shape(self.Ny))
+        # print('V: ', np.shape(self.V))
+        # print('uOpt: ', np.shape(self.uOpt))
+        # print('D: ', np.shape(self.D))
+        # print('1: ', np.shape(dot(self.Fy, self.x0)))
+        # print('2: ', np.shape(dot(self.My, self.uOpt)))
+        # print('3: ', np.shape(dot(self.Ny, self.V)))
+        # print('4: ', np.shape(dot(
+        #         self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+        #         )
+        #     )))
+        # print('5: ', np.shape(np.tile(self.control_model.Cy_mean_outputs, self.horiz_len).reshape(np.shape(self.Py)[0], 1)))
+
+        # print(self.Fy)
+        # print(self.x0)
+        # self.Y = dot(self.Fy, self.x0) + dot(self.My, self.uOpt) \
+        #     + dot(self.Ny, self.V) \
+        #     + dot(
+        #         self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Py)[1], 1)
+        #     ) \
+        #     + np.tile(self.control_model.Cy_mean_outputs, self.horiz_len).reshape(np.shape(self.Py)[0], 1)
         self.Y = dot(self.Fy, self.x0) + dot(self.My, self.uOpt) \
             + dot(self.Ny, self.V) \
             + dot(
                 self.Py, self.D - np.tile(
-                    self.control_model.Bd_mean_inputs, self.horiz_len
+                    self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
                 )
             ) \
-            + np.tile(self.control_model.Cy_mean_outputs, self.horiz_len)
+            + np.tile(self.control_model.Cy_mean_outputs, self.horiz_len).reshape(np.shape(self.Py)[0], 1)
+
+            
+        # print(self.Y)
+        # print(np.shape(self.Y))
         self.Y = self.Y \
-               - np.tile(self.control_model.Cy_lin, self.horiz_len) \
-               - np.tile(self.control_model.Dyu_lin, self.horiz_len) \
-               - np.tile(self.control_model.Dyd_lin, self.horiz_len)
+               - np.tile(self.control_model.Cy_lin, self.horiz_len).reshape(np.shape(self.Y)[0], np.shape(self.Y)[1]) \
+               - np.tile(self.control_model.Dyu_lin, self.horiz_len).reshape(np.shape(self.Y)[0], np.shape(self.Y)[1]) \
+               - np.tile(self.control_model.Dyd_lin, self.horiz_len).reshape(np.shape(self.Y)[0], np.shape(self.Y)[1])
         # print('shape Cy_lin: ', self.control_model.Cy_lin)
         # print('shape Dyu_lin: ', self.control_model.Dyu_lin)
         # print('shape Dyd_lin: ', self.control_model.Dyd_lin)
@@ -586,22 +691,47 @@ class subsystem():
         # print('UPDATEZ SELF.D: ', self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ))
-        print('UPDATEZ uconv: ', self.V)
+        # print('UPDATEZ uconv: ', self.V)
+        # print('Fz: ', np.shape(self.Fz))
+        # print('x0: ', np.shape(self.x0))
+        # print('Mz: ', np.shape(self.Mz))
+        # print('uConv: ', np.shape(self.uConv))
+        # print('Pz: ', np.shape(self.Pz))
+        # print('D: ', np.shape(self.D))
+        # print('1: ', np.shape(dot(self.Fz, self.x0)))
+        # print('2: ', np.shape(dot(self.Mz, self.uConv)))
+        # print('3: ', np.shape(dot(self.Nz, self.V)))
+        # print('4: ', np.shape(dot(
+        #         self.Pz, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Pz)[1], 1)
+        #     )))
+        # print('5: ', np.shape(np.tile(self.control_model.Bd_mean_inputs, self.horiz_len).reshape(np.shape(self.Pz)[1], 1)))
+        # self.Z = dot(self.Fz, self.x0) + dot(self.Mz, self.uConv) \
+        #     + dot(self.Nz, self.V) + dot(
+        #         self.Pz, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Pz)[1], 1)
+        #     ) \
+        #     + np.tile(self.control_model.Cz_mean_outputs, self.horiz_len).reshape(np.shape(self.Pz)[0], 1)
+
         self.Z = dot(self.Fz, self.x0) + dot(self.Mz, self.uConv) \
             + dot(self.Nz, self.V) + dot(
                 self.Pz, self.D - np.tile(
-                    self.control_model.Bd_mean_inputs, self.horiz_len
+                    self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
                 )
             ) \
-            + np.tile(self.control_model.Cz_mean_outputs, self.horiz_len)
+            + np.tile(self.control_model.Cz_mean_outputs, self.horiz_len).reshape(np.shape(self.Pz)[0], 1)
         # print('shape Cz_lin: ', self.control_model.Cz_lin)
         # print('shape Dzu_lin: ', self.control_model.Dzu_lin)
         # print('shape Dzd_lin: ', self.control_model.Dzd_lin)
         # print('shape of Z: ', np.shape(self.Z))
+        # print('Z: ', self.Z)
         self.Z = self.Z \
-                - np.tile(self.control_model.Cz_lin, self.horiz_len) \
-                - np.tile(self.control_model.Dzu_lin, self.horiz_len) \
-                - np.tile(self.control_model.Dzd_lin, self.horiz_len)
+                - np.tile(self.control_model.Cz_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
+                - np.tile(self.control_model.Dzu_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
+                - np.tile(self.control_model.Dzd_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1])
+        # print('size of self.Z: ', np.shape(self.Z))
 
     def sys_matrices(self):       
         # self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
@@ -647,12 +777,12 @@ class subsystem():
 
         Mytmp0 = self.Dyu
         Mytmp0Shape = np.shape(Mytmp0)
-        print('shape Dyu: ', np.shape(self.Dyu))
-        print('shape Cy: ', np.shape(self.Cy))
-        print('shape Bu: ', np.shape(self.Bu))
-        print('shape Mytmp0: ', np.shape(Mytmp0))
+        # print('shape Dyu: ', np.shape(self.Dyu))
+        # print('shape Cy: ', np.shape(self.Cy))
+        # print('shape Bu: ', np.shape(self.Bu))
+        # print('shape Mytmp0: ', np.shape(Mytmp0))
         Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))
-        print('shape Mytmp: ', np.shape(Mytmp))
+        # print('shape Mytmp: ', np.shape(Mytmp))
         for i in range(self.horiz_len - 1):
             Mytmp0 = np.hstack((Mytmp0, np.zeros(Mytmp0Shape)))
         for i in range(self.horiz_len - 2):
@@ -827,9 +957,9 @@ class subsystem():
         self.Py = Pytmp
 
 
-        print('shape Dzd: ', np.shape(self.Dzd))
-        print('shape Cz: ', np.shape(self.Cz))
-        print('shape Bd: ', np.shape(self.Bd))
+        # print('shape Dzd: ', np.shape(self.Dzd))
+        # print('shape Cz: ', np.shape(self.Cz))
+        # print('shape Bd: ', np.shape(self.Bd))
         Pztmp0 = self.Dzd
         Pztmp0Shape = np.shape(Pztmp0)
         Pztmp = np.hstack((dot(self.Cz, self.Bd), Pztmp0))
@@ -837,8 +967,8 @@ class subsystem():
             Pztmp0 = np.hstack((Pztmp0, np.zeros(Pztmp0Shape)))
         for i in range(self.horiz_len - 2):
             Pztmp = np.hstack((Pztmp, np.zeros(Pztmp0Shape)))
-        print('shape Pztmp0: ', np.shape(Pztmp0))
-        print('shape Pztmp: ', np.shape(Pztmp))
+        # print('shape Pztmp0: ', np.shape(Pztmp0))
+        # print('shape Pztmp: ', np.shape(Pztmp))
         Pztmp = np.vstack((Pztmp0, Pztmp))
 
         # Pztmp = dot(self.Cz, self.Bd)
@@ -929,15 +1059,10 @@ class subsystem():
 
         # TODO: make this work for user-supplied Q's and S's
         self.Q = np.diag(np.ones(self.nxMy))
-        # Set penalties for temperature to zero
-        for i in np.arange(0, len(self.Q), 2):
-            self.Q[i] = np.zeros(self.nxMy)
-
-        # Set penalty for last power to zero
-        self.Q[-1] = np.zeros(self.nxMy)
-        # self.Q[3::2] = np.zeros(self.nxMy)
-
-        self.S = np.diag(np.zeros(self.nyMy)*1.0e-3)
+        self.Q = self.control_model.process_Q(self.Q)
+        
+        self.S = np.diag(np.zeros(self.nyMy))
+        self.S = self.control_model.process_S(self.S)
 
     def mat_sizes(self):
         if self.A.ndim == 1:
@@ -1020,3 +1145,4 @@ class subsystem():
         #     self.nyDz = np.shape(self.Dz)[1]
         # else:
         #     raise Exception("The 'Dz' matrix has > 2 dimensions")
+

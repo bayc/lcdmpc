@@ -38,7 +38,7 @@ class bldg_sim_mdl:
         self.P = np.array([[2,0],[0,2]]) # covariance matrix of the building states
         self.R = 0.1 # variance in room temperature measurement
         
-    def simulate(self, current_time, inputs, disturb):
+    def simulate(self, current_time, inputs, disturb, v):
         self.i_sim = current_time
         
         ms_dot = inputs[1]
@@ -60,7 +60,7 @@ class bldg_sim_mdl:
         for key in self.disturb_keys:
             vars.append(tmp[key].values)
 
-        return [val for tup in zip(*vars) for val in tup]
+        return np.array([val for tup in zip(*vars) for val in tup]).reshape(np.shape(vars)[0]*np.shape(vars)[1], 1)
 
     def HJacobian_at(x):
         """ compute Jacobian of H matrix at x
