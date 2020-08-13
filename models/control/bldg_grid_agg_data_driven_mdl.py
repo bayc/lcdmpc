@@ -4,7 +4,7 @@ from numpy import dot as dot
 from numpy import transpose as tp
 from autograd import grad    # the only autograd function you may ever need
 
-class bldg_data_driven_mdl:
+class bldg_grid_agg_data_driven_mdl:
     def __init__(self, ms_dot, T_sa, T_z, horiz_len):
         # fan power (kW) model coefficients
         self.a0 = 0.0029
@@ -23,6 +23,8 @@ class bldg_data_driven_mdl:
         # disturbances = [T_oa, Q_int, Q_solar]
         disturbances = np.zeros(len(self.disturb_keys))
         self.reinit(inputs, disturbances)
+
+        self.Z_idn = [0]
 
     def reinit(self, inputs, disturbances):
         # inputs
@@ -50,11 +52,15 @@ class bldg_data_driven_mdl:
         self.Bv = np.array([[0.0]])
         #[T_out , Q_int, Q_solar] - self.mean_inputs(0:2)
         self.Bd = np.array([[0.0004864, 0.0003279, 0.0003766]]) 
-        
+
         self.K = 0.9998
         self.Bu_mean_inputs = np.array([0.0, 0.0, 0.0])
         self.Bd_mean_inputs = np.array([[26.3525], [0.0], [0.0]])
-        self.Cy_mean_outputs = np.array([[22.794], [self.truth_model_Pwr]])
+        self.Cy_mean_outputs = np.array([
+            [22.794],
+            [self.truth_model_Pwr],
+            [self.truth_model_Pwr]
+        ])
         self.Cz_mean_outputs = np.array([self.truth_model_Pwr])
         # self.Cy_mean_outputs = [22.794, 22.794]
 
@@ -67,18 +73,23 @@ class bldg_data_driven_mdl:
             T_z - self.Cy_mean_outputs[0][0]
         )
 
-        self.Cy = np.array([[1.], self.Cz[0]])
-        self.Dyu = np.array([[0.0, 0.0, 0.0], self.Dzu[0]])
-        self.Dyv = np.array([[0.0], self.Dzv[0]])
-        self.Dyd = np.array([[0.0, 0.0, 0.0], self.Dzd[0]])
+        self.Cy = np.array([[1.], self.Cz[0], -1*self.Cz[0]])
+        # print(self.Cy)
+        self.Dyu = np.array([[0.0, 0.0, 0.0], self.Dzu[0], -1*self.Dzu[0]])
+        # print(self.Dyu)
+        self.Dyv = np.array([[0.0], self.Dzv[0], [1.0 - self.Dzv[0]]])
+        # print(self.Dyv)
+        self.Dyd = np.array([[0.0, 0.0, 0.0], self.Dzd[0], -1*self.Dzd[0]])
+        # print(self.Dyd)
+        # lkj
 
         self.Cy_lin = dot(
-            np.array([[0.], [self.Cy[1]]]), self.T_z_lin
+            np.array([[0.], [self.Cy[1]], [-1*self.Cy[1]]]), self.T_z_lin
         )
         self.Cz_lin = dot(self.Cz[0], self.T_z_lin)
 
         self.Dyu_lin = dot(
-            np.array([np.zeros(np.shape(self.Dyu)[1]).tolist(), self.Dyu[1]]), 
+            np.array([np.zeros(np.shape(self.Dyu)[1]).tolist(), self.Dyu[1], -1*self.Dyu[1]]), 
             np.array([[0.], [self.ms_dot_lin], [self.T_sa_lin]])
         )
         self.Dzu_lin = dot(
@@ -97,13 +108,15 @@ class bldg_data_driven_mdl:
 
     def process_Q(self, Q):
         # Set penalties for temperature to zero
-        for i in np.arange(0, len(Q), 2):
+        for i in np.arange(0, len(Q), 3):
+            Q[i] = np.zeros(len(Q))
+        for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
 
         # Set penalty for last power to zero
         # Q[-1] = np.zeros(len(Q))
-        print('Building Q: ', Q)
-        return Q
+        # print('Building Q: ', Q)
+        return Q*1.0e-3
 
     def process_S(self, S):
         S = S*1.0e-3
@@ -123,15 +136,20 @@ class bldg_data_driven_mdl:
             + self.Dyd_lin
         return refs
 
-    def process_refs_horiz(self, refs, refs_const, V):
-        print('refs: ', refs)
-        print('refs_const: ', refs_const)
+    def process_refs_horiz(self, refs, refs_const):
+        # print('refs: ', np.array(refs_const))
+        # print('1: ', np.array([0, self.truth_model_Pwr, 0]*self.horiz_len).reshape(np.shape(refs_const)[0], 1))
+        # print('2: ', np.array([self.Cy_lin]*self.horiz_len).reshape(np.shape(refs_const)[0], 1))
+        # print('3: ', np.array([self.Dyu_lin]*self.horiz_len).reshape(np.shape(refs_const)[0], 1))
+        # print('4: ', np.array([self.Dyd_lin]*self.horiz_len).reshape(np.shape(refs_const)[0], 1))
+        # print('previous refs: ', refs)
         refs = (np.array(refs_const) \
-            - np.array([0, self.truth_model_Pwr]*self.horiz_len) \
-            + np.array([self.Cy_lin]*self.horiz_len).flatten() \
-            + np.array([self.Dyu_lin]*self.horiz_len).flatten() \
-            + np.array([self.Dyd_lin]*self.horiz_len).flatten()).reshape(len(refs_const), 1)
-        print('refs after: ', refs)
+            - np.array([0, self.truth_model_Pwr, -1*self.truth_model_Pwr]*self.horiz_len).reshape(np.shape(refs_const)[0], 1) \
+            + np.array([self.Cy_lin]*self.horiz_len).reshape(np.shape(refs_const)[0], 1) \
+            + np.array([self.Dyu_lin]*self.horiz_len).reshape(np.shape(refs_const)[0], 1) \
+            + np.array([self.Dyd_lin]*self.horiz_len).reshape(np.shape(refs_const)[0], 1))
+        # refs[2::3] = 0.0
+        print('processed refs: ', refs)
         return refs
 
     def get_forecast(self, current_time, disturbance_data):
@@ -190,7 +208,7 @@ class bldg_data_driven_mdl:
         # print('stuff: ', funcs['hvac_con'])
         # print('Y: ', Y)
         # print('Y subset: ', Y[0::2])
-        funcs['T_building_con'] = np.array(Y[0::2]).reshape(self.horiz_len)
+        funcs['T_building_con'] = np.array(Y[0::3]).reshape(self.horiz_len)
         # print('tbldg_con: ', funcs['T_building_con'])
 
         # print('stuff2: ', np.shape(funcs['T_building_con']))
@@ -238,9 +256,13 @@ class bldg_data_driven_mdl:
         Dz = np.array(D_fan) + np.array(D_chill)
         # print('Dz grad: ', Dz)
         self.Cz = np.array([[Dz[3]]])
+        # print(self.Cz)
         self.Dzu = np.array([np.hstack(([0.0], Dz[1], Dz[0]))])
+        # print(self.Dzu[0])
         self.Dzv = np.array([[0.0]])
         self.Dzd = np.array([np.hstack((Dz[2], [0.0, 0.0]))])
+        # print(self.Dzd)
+        
 
     def update_inputs(self, states, control_actions, outputs):
         # TODO: need to define

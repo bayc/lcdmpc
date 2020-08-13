@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 # import numpy.linalg.matrix_power as matpow
 
-from models.control.bldg_data_driven_mdl import bldg_data_driven_mdl
+from models.control.bldg_grid_agg_data_driven_mdl import bldg_grid_agg_data_driven_mdl
 from models.simulation.bldg_sim_mdl import bldg_sim_mdl
 from models.control.grid_aggregator import grid_aggregator
 # from models.control.wind_mdl import wind_mdl
@@ -28,8 +28,8 @@ tmp = opt.LCDMPC(start_time, dt)
 
 time = 80       # Length of simulation in minutes
 horiz_len = 2   # Prediction horizion length
-commuincation_iterations = 1
-Beta = 0.5      # Convex combination parameter for control action
+commuincation_iterations = 3
+Beta = 0.1      # Convex combination parameter for control action
 
 time_array = np.arange(start_time, (start_time + time), dt)
 
@@ -50,18 +50,31 @@ disturb2 = [6.0, 2.0, 2.0]
 outputs1 = [1]
 outputs2 = [1]
 
-refs1 = [-4., 25.]
-refs_grid = [10.]
+refs1 = [[-4.], [20.], [0.0]]
+refs_grid = [[40.], [0.], [0.]]
 # refs2 = [-1]
 
-num_downstream1 = 1
+bldg_optoptions = {
+    'Major feasibility tolerance': 1e-4,
+    'Print file': 'SNOPT_bldg_print.out',
+    'Summary file': 'SNOPT_bldg_summary.out',
+}
+grid_optoptions = {
+    'Major feasibility tolerance': 1e-4,
+    'Print file': 'SNOPT_grid_print.out',
+    'Summary file': 'SNOPT_grid_summary.out',
+}
+
+num_downstream1 = 2
 
 bldg1_disturb_file = 'input/ROM_simulation_data.csv'
 
-bldg1_cont = bldg_data_driven_mdl(ms_dot, T_sa, T_z, horiz_len)
-# bldg2_cont = bldg_data_driven_mdl(ms_dot, T_sa, T_z, horiz_len)
+# bldg1_cont = bldg_data_driven_mdl(ms_dot, T_sa, T_z, horiz_len)
+bldg1_cont = bldg_grid_agg_data_driven_mdl(ms_dot, T_sa, T_z, horiz_len)
+bldg2_cont = bldg_grid_agg_data_driven_mdl(ms_dot, T_sa, T_z, horiz_len)
 
 bldg1_truth = bldg_sim_mdl(dt/12, ms_dot, T_sa, T_z, T_e, start_time)
+bldg2_truth = bldg_sim_mdl(dt/12, ms_dot, T_sa, T_z, T_e, start_time)
 
 grid_agg1_cont = grid_aggregator(horiz_len, num_downstream1)
 grid_agg1_truth = grid_aggregator(horiz_len, num_downstream1)
@@ -84,12 +97,19 @@ grid_agg1_truth = grid_aggregator(horiz_len, num_downstream1)
 
 # wind1 = wind_mdl(input_file, yaw, Ct, ws, wd, horiz_len)
 
-tmp.build_subsystem(bldg1_cont, bldg1_truth, 
-    inputs, outputs1, refs1, horiz_len, Beta, bldg1_disturb_file)
+tmp.build_subsystem(0, grid_agg1_cont, grid_agg1_truth, 
+    inputs, outputs1, refs_grid, horiz_len, Beta, bldg1_disturb_file,
+    optOptions=grid_optoptions)
 
-tmp.build_subsystem(grid_agg1_cont, grid_agg1_truth, 
-    inputs, outputs1, refs_grid, horiz_len, Beta, bldg1_disturb_file)
+tmp.build_subsystem(1, bldg1_cont, bldg1_truth, 
+    inputs, outputs1, refs1, horiz_len, Beta, bldg1_disturb_file,
+    optOptions=bldg_optoptions)
 
+tmp.build_subsystem(2, bldg2_cont, bldg2_truth, 
+    inputs, outputs1, refs1, horiz_len, Beta, bldg1_disturb_file,
+    optOptions=bldg_optoptions)
+
+# lkj
 # tmp.subsystems[0].Uconv = [ms_dot, T_sa]
 # outputs = tmp.simulate_truth_model()
 
@@ -110,7 +130,7 @@ tmp.build_subsystem(grid_agg1_cont, grid_agg1_truth,
 
 # tmp.subsystems[0].sys_matrices()
 
-connections = [[0, 1], [1, 0]]
+connections = [[0, 1], [1, 0], [0, 2], [2, 0]]
 # connections = [[1, 0]]
 
 tmp.build_interconnections(interconnections=connections)
@@ -120,8 +140,10 @@ cont1 = []
 out1 = []
 cont2 = []
 out2 = []
-T_bldg = []
-P_bldg = []
+T_bldg1 = []
+P_bldg1 = []
+T_bldg2 = []
+P_bldg2 = []
 P_ref = []
 
 for i in range(int(time/dt)):
@@ -140,7 +162,7 @@ for i in range(int(time/dt)):
 
         tmp.update_downstream_outputs()
 
-        # tmp.calc_obj()
+        tmp.calc_obj()
 
         tmp.calculate_sensitivities()
 
@@ -158,8 +180,11 @@ for i in range(int(time/dt)):
     print('outputs in main.py: ', outputs)
 
     # if i == 0:
-    #     T_bldg.append(outputs[0])
-    #     P_bldg.append(outputs[1])
+    T_bldg1.append(outputs[1][0])
+    P_bldg1.append(outputs[1][1])
+
+    T_bldg2.append(outputs[2][0])
+    P_bldg2.append(outputs[2][1])
     # if i == 1:
     #     P_ref.append(outputs)
 
@@ -170,35 +195,35 @@ for i in range(int(time/dt)):
     tmp.update_forecast_inputs()
 
     # cont1.append(tmp.subsystems[0].uConv[0:2*len(yaw)])
-    cont1.append(tmp.subsystems[0].uConv)
-    out1.append(tmp.subsystems[0].y)
+    cont1.append(tmp.subsystems[1].uConv)
+    out1.append(tmp.subsystems[1].y)
 
-    cont2.append(tmp.subsystems[1].uConv)
-    out2.append(tmp.subsystems[1].y)
+    cont2.append(tmp.subsystems[2].uConv)
+    out2.append(tmp.subsystems[2].y)
 
     print('+++++++++++++++++++++++++++++')
     print('time iteration: ', i)
     print('+++++++++++++++++++++++++++++')
 
-print('building control: ', cont1)
-print('building output: ', out1)
-print('grid control: ', cont2)
-print('grid output: ', out2)
+print('building1 control: ', cont1)
+print('building1 output: ', out1)
+print('building2 control: ', cont2)
+print('building2 output: ', out2)
 
 np.set_printoptions(suppress=True)
 
-print('P_bldg: ', P_bldg)
+# print('P_bldg: ', P_bldg)
 
 T_lower = 21.5
 T_upper = 24.5
 P_lower = 0.0
 P_upper = 100.0
 
-fig, axes = plt.subplots(1, 2, figsize=(12,5))
-ax1 = axes[0]
-ax1.plot(time_array, np.array(T_bldg).flatten(), '-b')
-ax1.plot(time_array, T_lower*np.ones(len(T_bldg)), '--k')
-ax1.plot(time_array, T_upper*np.ones(len(T_bldg)), '--k')
+fig, axes = plt.subplots(2, 2, figsize=(12,5))
+ax1 = axes[0, 0]
+ax1.plot(time_array, np.array(T_bldg1).flatten(), '-b')
+ax1.plot(time_array, T_lower*np.ones(len(T_bldg1)), '--k')
+ax1.plot(time_array, T_upper*np.ones(len(T_bldg1)), '--k')
 ax1.legend(['Zone Temp', 'Temp Constraints'])
 xticks = ax1.get_xticks()
 ax1.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
@@ -206,9 +231,30 @@ ax1.set_title('Building Temperature')
 ax1.set_ylabel('Temperature [C]')
 ax1.set_xlabel('Time')
 
-ax2 = axes[1]
-ax2.plot(time_array, np.array(P_bldg).flatten(), '-b')
+ax2 = axes[0, 1]
+ax2.plot(time_array, np.array(P_bldg1).flatten(), '-b')
 ax2.plot(time_array, [val[1] for val in tmp.subsystems[0].refs_plot[1:]], '--r')
+ax2.legend(['Bldg Power', 'Power Ref'])
+xticks = ax2.get_xticks()
+ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
+ax2.set_title('Building Power')
+ax2.set_ylabel('Power [kw]')
+ax2.set_xlabel('Time')
+
+ax1 = axes[1, 0]
+ax1.plot(time_array, np.array(T_bldg2).flatten(), '-b')
+ax1.plot(time_array, T_lower*np.ones(len(T_bldg2)), '--k')
+ax1.plot(time_array, T_upper*np.ones(len(T_bldg2)), '--k')
+ax1.legend(['Zone Temp', 'Temp Constraints'])
+xticks = ax1.get_xticks()
+ax1.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
+ax1.set_title('Building Temperature')
+ax1.set_ylabel('Temperature [C]')
+ax1.set_xlabel('Time')
+
+ax2 = axes[1, 1]
+ax2.plot(time_array, np.array(P_bldg2).flatten(), '-b')
+ax2.plot(time_array, [val[1] for val in tmp.subsystems[1].refs_plot[1:]], '--r')
 ax2.legend(['Bldg Power', 'Power Ref'])
 xticks = ax2.get_xticks()
 ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])

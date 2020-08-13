@@ -24,11 +24,12 @@ class LCDMPC():
         self.current_time = start_time
         self.time_step = time_step
 
-    def build_subsystem(self, control_model, truth_model, inputs, outputs,
-        refs, horiz_len, Beta, disturbance_file, nodeID=None, nodeName=None):
+    def build_subsystem(self, idn, control_model, truth_model, inputs, outputs,
+        refs, horiz_len, Beta, disturbance_file, nodeID=None, nodeName=None,
+        optOptions=None):
         # create subsystem object
-        subsys = subsystem(self, control_model, truth_model, inputs,
-            outputs, refs, horiz_len, Beta, disturbance_file, self.current_time, nodeID=nodeID, nodeName=nodeName)
+        subsys = subsystem(self, idn, control_model, truth_model, inputs,
+            outputs, refs, horiz_len, Beta, disturbance_file, self.current_time, nodeID=nodeID, nodeName=nodeName, optOptions=optOptions)
         # append it to subsystem list
         self.subsystems.append(subsys)
 
@@ -76,6 +77,8 @@ class LCDMPC():
             for subsys in self.subsystems:
                 subsys.downstream.append('None')
                 subsys.upstream.append('None')
+                subsys.control_model.num_upstream = 0
+                subsys.control_model.num_downstream = 0
         else:
             for pair in interconnections:
                 up = pair[0]
@@ -94,7 +97,7 @@ class LCDMPC():
         """
         for subsys in self.subsystems:
             subsys.update_Z()
-            print('self.Z: ', subsys.Z)
+            print('self.Z subsys: ', subsys.Z)
 
     def communicate(self):
         """
@@ -166,12 +169,13 @@ class LCDMPC():
 
 
 class subsystem():
-    def __init__(self, obj, control_model, truth_model, inputs, outputs, refs, horiz_len, 
+    def __init__(self, obj, idn, control_model, truth_model, inputs, outputs, refs, horiz_len, 
                  Beta, disturbance_file, current_time, upstream=None, downstream=None, 
                  nodeID=None, nodeName=None, optOptions=None):
         # self.Q = Q
         # self.S = S
         # self.count = 0
+        self.idn = idn
         self.current_time = current_time
         self.refs_plot = []
         
@@ -195,6 +199,9 @@ class subsystem():
         self.y = self.control_model.Cy_mean_outputs
         self.refs = self.refs*self.horiz_len
         self.refs_const = self.refs_const*self.horiz_len
+
+        self.V = np.zeros((np.shape(self.control_model.Bv)[1]*self.horiz_len, 1))
+
         self.relinearize(control_model, inputs, self.d, outputs)
 
         if upstream is not None:
@@ -216,7 +223,8 @@ class subsystem():
         if optOptions is not None:
             self.optOptions = optOptions
         else:
-            self.optOptions = {'Major feasibility tolerance' : 1e-1}
+            self.optOptions = {'Major feasibility tolerance' : 1e-4}
+        print(self.optOptions)
 
         self.x0 = np.zeros((self.nxA, 1))
         # self.x0 = np.array([[0.0] for _ in range(self.nxA)])
@@ -228,7 +236,7 @@ class subsystem():
         # self.uOpt = []
         self.uOpt = [-100, 0.8, 12.8]*self.horiz_len
         self.uOpt = np.array(self.uOpt).reshape(len(self.uOpt), 1)
-        self.V = np.zeros((self.nyNy, 1))
+        
         self.D = np.zeros((self.nyPy, 1))
         # self.V = np.array([[0.0] for _ in range(self.nyNy)])
         
@@ -245,7 +253,7 @@ class subsystem():
 
     def simulate_truth(self, current_time, inputs, disturb):
         self.current_time = current_time
-        print(self.truth_model)
+        # print(self.truth_model)
         outputs = self.truth_model.simulate(
             current_time,
             inputs,
@@ -289,9 +297,7 @@ class subsystem():
         # if self.current_time == 180:
         #     self.refs_const[1::2] = [self.refs_const[1] - 10]*self.horiz_len
 
-        self.refs = self.control_model.process_refs_horiz(
-            self.refs, self.refs_const
-        )
+        self.refs = self.control_model.process_refs_horiz(self.refs, self.refs_const)
         # self.refs = np.array(self.refs_const) \
         #     - np.array([0, self.control_model.truth_model_Pwr]*self.horiz_len) \
         #     + np.array([self.control_model.Cy_lin]*self.horiz_len).flatten() \
@@ -349,6 +355,8 @@ class subsystem():
         # optProb = self.add_constraints(optProb)
 
         opt = SNOPT(optOptions=self.optOptions)
+        opt.setOption('Print file', value=self.optOptions['Print file'])
+        opt.setOption('Summary file', value=self.optOptions['Summary file'])
         # sol = opt(optProb, sens=self.sens)
         sol = opt(optProb, sens='FDR')
         # sol = opt(optProb)
@@ -372,14 +380,18 @@ class subsystem():
         # print('self.V shape: ', np.shape(self.V))
         # print('self.E shape: ', np.shape(self.E))
         # print('self.T shape: ', np.shape(self.T))
+        # print('uopt: ', self.uOpt)
+        # print('obj1: ', dot(dot(tp(self.uOpt), self.H), self.uOpt))
+        # print('obj2: ', 2*dot(tp(self.uOpt), self.F))
         funcs['obj'] = (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
                      + 2*dot(tp(self.uOpt), self.F) \
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T))
         # print('obj_func: ', np.shape(funcs['obj']))
         # Compute constraints, if any are defined for control model
+        # print('!!!!!: ', funcs['obj'])
         self.update_Y()
-        print('self.Y: ', self.Y)
+        # print('self.Y: ', self.Y)
         funcs = self.control_model.compute_cons(funcs, self.uOpt, self.Y)
 
         fail = False
@@ -392,12 +404,14 @@ class subsystem():
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T))
         # print('opt_control: ', self.uConv[:self.control_model.numDVs])
-        # print('objective function: ', obj_func)
-        # print('self.Y: ', self.Y)
+        print('objective function: ', obj_func)
+        print('self.Y: ', self.Y)
+        # print('self.Nz: ', self.Nz)
         # print('self.Dy: ', self.control_model.Cy)
         # print('self.My:', self.Fy)
         
-        # print('********************UPDATE_Y: ', self.uConv)
+        print('optimized variables: ', self.uOpt)
+        print('convex combination: ', self.uConv)
         # print('UPDATEY SELF.D: ', self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ))
@@ -516,22 +530,47 @@ class subsystem():
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ).reshape(np.shape(self.Py)[1], 1)) - self.refs)) \
         #        + 0.5*dot(tp(self.Mz), self.Psi)
-        # print('shape My: ', np.shape(self.My))
-        # print('shape Q: ', np.shape(self.Q))
-        # print('shape Fy: ', np.shape(self.Fy))
-        # print('shape x0: ', np.shape(self.x0))
-        # print('shape Ny: ', np.shape(self.Ny))
-        # print('shape V: ', np.shape(self.V))
-        # print('shape Py: ', np.shape(self.Py))
-        # print('shape D: ', np.shape(self.D))
-        # print('shape tile: ', np.shape(np.tile(
+        print('shape Cy: ', np.shape(self.Cy))
+        print('Cy: ', self.Cy)
+        print('shape Bv: ', np.shape(self.Bv))
+        print('shape My: ', np.shape(self.My))
+        print('shape Q: ', np.shape(self.Q))
+        print('shape Fy: ', np.shape(self.Fy))
+        print('shape x0: ', np.shape(self.x0))
+        print('shape Ny: ', np.shape(self.Ny))
+        print('shape V: ', np.shape(self.V))
+        print('shape Py: ', np.shape(self.Py))
+        print('shape D: ', self.D)
+        # print('shape tile: ', np.tile(
+        #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+        #         ))
+        # print('shape refs: ', np.shape(self.refs))
+        # print('Y: ', dot(self.Fy, self.x0) \
+        #        + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
         #         )))
-        # print('shape refs: ', np.shape(self.refs))
-        print('Y: ', dot(self.Fy, self.x0) \
-               + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
-                    self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
-                )))
+
+        # print('term1: ', dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
+        #        + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+        #         )) - self.refs)))
+        # print('term2: ', 0.5*dot(tp(self.Mz), self.Psi))
+
+        # print('term3: ', dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) \
+        #        + dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Py)[1], 1)) - self.refs)))
+        # print('term3a: ', dot(tp(self.Ny), self.Q))
+        # print('term3b: ', dot(self.Fy, self.x0))
+        # print('term3c: ', dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+        #         )))
+        print('term3d: ', self.refs)
+        print('shape of Mz: ', np.shape(self.Mz))
+        print('shape of Psi: ', np.shape(self.Psi))
+        # print('term4: ', 0.5*dot(tp(self.Nz), self.Psi))
+
+
         self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
                + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
                     self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
@@ -543,8 +582,18 @@ class subsystem():
                 ).reshape(np.shape(self.Py)[1], 1)) - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
 
     def calc_sens(self):
+        # self.gamma = self.control_model.calculate_sens(self)
         self.gamma = 2*(dot(self.E_1, self.V) + self.T \
                    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
+        # print('self.E_1: ', self.E_1)
+        # print('self.V: ', self.V)
+        # print('self.T: ', self.T)
+        # print('self.Ny: ', self.Ny)
+        # print('self.Q: ', self.Q)
+        # print('self.My: ', self.My)
+        # print('self.uConv: ', self.uConv)
+        
+        print('gamma: ', self.gamma)
 
     def update_inputs(self):
         self.inputs = self.control_model.update_inputs(
@@ -566,21 +615,26 @@ class subsystem():
 
     def update_V(self, obj):
         # TODO: figure out how to make this work when z is more than one value
-        for upstream in self.upstream:
+        for i, upstream in enumerate(self.upstream):
             if upstream=='None':
-                self.V = np.zeros(self.nyNy)
+                self.V = np.zeros((self.nyNy, 1))
             else:
-                self.V = obj.subsystems[upstream].Z
+                idx = np.where(np.array(obj.subsystems[upstream].control_model.Z_idn) == self.idn)[0][0]
+                idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
+                self.V[i::self.control_model.num_upstream] = obj.subsystems[upstream].Z[idx::idx_range]
                 # self.V = np.array([[val] for \
                 #     val in obj.subsystems[upstream].Z])
 
     def update_Psi(self, obj):
         # TODO: figure out how to make this work when z is more than one value
-        for upstream in self.upstream:
+        for i, upstream in enumerate(self.upstream):
             if upstream=='None':
-                self.Psi = np.zeros(self.nxMz)
+                self.Psi = np.zeros((self.nxMz, 1))
             else:
-                self.Psi = obj.subsystems[upstream].Gamma
+                idx = np.where(np.array(obj.subsystems[upstream].control_model.Z_idn) == self.idn)[0][0]
+                idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
+                self.Psi[i::self.control_model.num_upstream] = obj.subsystems[upstream].Gamma[idx::idx_range]
+                # self.Psi = obj.subsystems[upstream].Gamma
 
     def update_x(self):
         # TODO: add in self.d to class
@@ -618,8 +672,8 @@ class subsystem():
             + dot(self.Dyv, self.V[0:len(self.upstream)]) \
             + dot(self.Dyd, self.d - self.control_model.Bd_mean_inputs) \
             + self.control_model.Cy_mean_outputs
-        print('self.y: ', self.y)
-        print('shape of self.y: ', np.shape(self.y))
+        # print('self.y: ', self.y)
+        # print('shape of self.y: ', np.shape(self.y))
 
         # self.y[1] = self.y[1] - dot(self.Dyu[1], tp(np.array([0., self.control_model.ms_dot_lin, self.control_model.T_sa_lin])))
         # self.y[1] = self.y[1] - dot(self.Dyd[1], np.array([self.control_model.T_oa_lin, 0., 0.]))
@@ -665,6 +719,10 @@ class subsystem():
         #         ).reshape(np.shape(self.Py)[1], 1)
         #     ) \
         #     + np.tile(self.control_model.Cy_mean_outputs, self.horiz_len).reshape(np.shape(self.Py)[0], 1)
+        # print('!!!!!!!!!: ', np.tile(self.control_model.Cy_mean_outputs, (self.horiz_len, 1)))
+        # print('*********: ', np.tile(
+                #     self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+                # ))
         self.Y = dot(self.Fy, self.x0) + dot(self.My, self.uOpt) \
             + dot(self.Ny, self.V) \
             + dot(
@@ -672,15 +730,18 @@ class subsystem():
                     self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
                 )
             ) \
-            + np.tile(self.control_model.Cy_mean_outputs, self.horiz_len).reshape(np.shape(self.Py)[0], 1)
+            + np.tile(self.control_model.Cy_mean_outputs, (self.horiz_len, 1))
 
             
-        # print(self.Y)
+        
         # print(np.shape(self.Y))
+        # print('//////: ', self.control_model.Dyd_lin)
+        # print('######: ', np.tile(self.control_model.Dyd_lin, (self.horiz_len,1)))
         self.Y = self.Y \
-               - np.tile(self.control_model.Cy_lin, self.horiz_len).reshape(np.shape(self.Y)[0], np.shape(self.Y)[1]) \
-               - np.tile(self.control_model.Dyu_lin, self.horiz_len).reshape(np.shape(self.Y)[0], np.shape(self.Y)[1]) \
-               - np.tile(self.control_model.Dyd_lin, self.horiz_len).reshape(np.shape(self.Y)[0], np.shape(self.Y)[1])
+               - np.tile(self.control_model.Cy_lin, (self.horiz_len, 1)) \
+               - np.tile(self.control_model.Dyu_lin, (self.horiz_len, 1)) \
+               - np.tile(self.control_model.Dyd_lin, (self.horiz_len, 1))
+        # print('!!!!!!!!!: ', self.Y)
         # print('shape Cy_lin: ', self.control_model.Cy_lin)
         # print('shape Dyu_lin: ', self.control_model.Dyu_lin)
         # print('shape Dyd_lin: ', self.control_model.Dyd_lin)
@@ -726,11 +787,17 @@ class subsystem():
         # print('shape Dzu_lin: ', self.control_model.Dzu_lin)
         # print('shape Dzd_lin: ', self.control_model.Dzd_lin)
         # print('shape of Z: ', np.shape(self.Z))
-        # print('Z: ', self.Z)
+        # print('Z before: ', self.Z)
+        self.Y = self.Y \
+               - np.tile(self.control_model.Cy_lin, (self.horiz_len, 1)) \
+               - np.tile(self.control_model.Dyu_lin, (self.horiz_len, 1)) \
+               - np.tile(self.control_model.Dyd_lin, (self.horiz_len, 1))
+
         self.Z = self.Z \
                 - np.tile(self.control_model.Cz_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
                 - np.tile(self.control_model.Dzu_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
                 - np.tile(self.control_model.Dzd_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1])
+        print('Z after: ', self.Z)
         # print('size of self.Z: ', np.shape(self.Z))
 
     def sys_matrices(self):       
@@ -778,9 +845,9 @@ class subsystem():
         Mytmp0 = self.Dyu
         Mytmp0Shape = np.shape(Mytmp0)
         # print('shape Dyu: ', np.shape(self.Dyu))
-        # print('shape Cy: ', np.shape(self.Cy))
-        # print('shape Bu: ', np.shape(self.Bu))
-        # print('shape Mytmp0: ', np.shape(Mytmp0))
+        print('shape Cy: ', np.shape(self.Cy))
+        print('shape Bu: ', np.shape(self.Bu))
+        print('shape Mytmp0: ', np.shape(Mytmp0))
         Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))
         # print('shape Mytmp: ', np.shape(Mytmp))
         for i in range(self.horiz_len - 1):
@@ -861,12 +928,16 @@ class subsystem():
         self.Mz = Mztmp
         # print('/////////// Mz: ', self.Mz)
 
-        # TODO: need to update with Dyv
-        Nytmp = dot(self.Cy, self.Bv)
-        NytmpShape = np.shape(Nytmp)
+        Nytmp0 = self.Dyv
+        Nytmp0Shape = np.shape(Nytmp0)
+        Nytmp = np.hstack((dot(self.Cy, self.Bv), Nytmp0))
         for i in range(self.horiz_len - 1):
-            Nytmp = np.hstack((Nytmp, np.zeros(NytmpShape)))
-        for i in range(1, self.horiz_len):
+            Nytmp0 = np.hstack((Nytmp0, np.zeros(Nytmp0Shape)))
+        for i in range(self.horiz_len - 2):
+            Nytmp = np.hstack((Nytmp, np.zeros(Nytmp0Shape)))
+        Nytmp = np.vstack((Nytmp0, Nytmp))
+        
+        for i in range(1, self.horiz_len - 1):
             if Nytmp.ndim == 1:
                 Nytmp = np.vstack((Nytmp, np.hstack((dot(self.Cy, \
                     dot(matpower(self.A, i), self.Bv )), Nytmp[:-self.nyBv]))))
@@ -889,12 +960,21 @@ class subsystem():
                     )
         self.Ny = Nytmp
 
-        Nztmp = dot(self.Cz, self.Bv)
-        NztmpShape = np.shape(Nztmp)
+        Nztmp0 = self.Dzv
+        Nztmp0Shape = np.shape(Nztmp0)
+        Nztmp = np.hstack((dot(self.Cz, self.Bv), Nztmp0))
         for i in range(self.horiz_len - 1):
-            Nztmp = np.hstack((Nztmp, np.zeros(NztmpShape)))
-        Nztmp0 = np.zeros(np.shape(Nztmp))
+            Nztmp0 = np.hstack((Nztmp0, np.zeros(Nztmp0Shape)))
+        for i in range(self.horiz_len - 2):
+            Nztmp = np.hstack((Nztmp, np.zeros(Nztmp0Shape)))
         Nztmp = np.vstack((Nztmp0, Nztmp))
+        
+        # Nztmp = dot(self.Cz, self.Bv)
+        # NztmpShape = np.shape(Nztmp)
+        # for i in range(self.horiz_len - 1):
+        #     Nztmp = np.hstack((Nztmp, np.zeros(NztmpShape)))
+        # Nztmp0 = np.zeros(np.shape(Nztmp))
+        # Nztmp = np.vstack((Nztmp0, Nztmp))
         for i in range(1, self.horiz_len - 1):
             if Nztmp.ndim == 1:
                 Nztmp = np.vstack((Nztmp, np.hstack((dot(self.Cz, \

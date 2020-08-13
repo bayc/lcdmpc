@@ -14,6 +14,8 @@ class grid_aggregator:
         disturbances = np.array([0.0])
         self.reinit(inputs, disturbances)
 
+        self.Z_idn = [1, 2]
+
     def reinit(self, inputs, disturbances):
         # inputs
 
@@ -23,37 +25,53 @@ class grid_aggregator:
         # Model matrices
         self.A = np.zeros((self.num_downstream, self.num_downstream))
         self.Bu = np.zeros((self.num_downstream, self.num_downstream))
-        self.Bv = np.eye(self.num_downstream)
+        self.Bv = np.zeros((self.num_downstream, self.num_downstream))
         self.Bd = np.zeros((self.num_downstream, 1)) 
-        
+
         self.Bu_mean_inputs = np.zeros((self.num_downstream, self.num_downstream))
         self.Bd_mean_inputs = np.array([0.0])
-        self.Cy_mean_outputs = np.array([0.0])
+        self.Cy_mean_outputs = np.array([[0.0], [0.0], [0.0]])
         self.Cz_mean_outputs = np.zeros((self.num_downstream, 1))
 
-        self.Cy = np.array([[1.0]*self.num_downstream])
-        self.Dyu = np.array([[0.0]*self.num_downstream])
-        self.Dyv = np.array([[0.0]])
-        self.Dyd = np.array([[0.0]])
+        self.Cy = np.array([[0.0]*self.num_downstream, [0.0]*self.num_downstream, [0.0]*self.num_downstream])
+        self.Dyu = np.array(
+            np.vstack(
+                [
+                    [1.0]*self.num_downstream,
+                    -1.0*np.eye(self.num_downstream)
+                ]
+            )
+        )
+        self.Dyv = np.array(
+            np.vstack(
+                [
+                    [0.0]*self.num_downstream,
+                    np.eye(self.num_downstream)
+                ]
+            )
+        )
+        self.Dyd = np.array([[0.0], [0.0], [0.0]])
 
         self.Cz = np.zeros((self.num_downstream, self.num_downstream))
         self.Dzu = np.eye(self.num_downstream)
         self.Dzv = np.zeros((self.num_downstream, self.num_downstream))
         self.Dzd = np.zeros((self.num_downstream, 1))
 
-        self.Cy_lin = np.array([0.0])
-        self.Cz_lin = np.array([0.0])
+        self.Cy_lin = np.array([[0.0], [0.0], [0.0]])
+        self.Cz_lin = np.array([[0.0], [0.0]])
 
-        self.Dyu_lin = np.array([0.0])
-        self.Dzu_lin = np.array([0.0])
+        self.Dyu_lin = np.array([[0.0], [0.0], [0.0]])
+        self.Dzu_lin = np.array([[0.0], [0.0]])
 
-        self.Dyd_lin = np.array([0.0])
-        self.Dzd_lin = np.array([0.0])
+        self.Dyd_lin = np.array([[0.0], [0.0], [0.0]])
+        self.Dzd_lin = np.array([[0.0], [0.0]])
 
     def process_Q(self, Q):
+        print('grid Q: ', Q)
         return Q
 
     def process_S(self, S):
+        S = S
         return S
 
     def get_forecast(self, current_time, disturbance_data):
@@ -64,6 +82,9 @@ class grid_aggregator:
         self.bldg_Prefs = np.array(self.bldg_Prefs).reshape(np.shape(self.bldg_Prefs)[0], 1)
         # print('parse_opt_vars: ', np.shape(self.bldg_Prefs))
 
+        
+        # self.bldg_Prefs = np.array([[10.0], [10.0]])
+        print('optimized prefs: ', self.bldg_Prefs)
         return self.bldg_Prefs
 
     def parse_sol_vars(self, sol):
@@ -75,7 +96,7 @@ class grid_aggregator:
 
     def add_var_group(self, optProb):
         optProb.addVarGroup('bldg_Prefs', self.horiz_len*self.num_upstream, type='c', 
-                            lower=0.0, upper=100.0, value=35.0)
+                            lower=0.0, upper=100.0, value=5.0)
 
         self.numDVs = len(optProb.getDVs().keys())
         return optProb
@@ -96,6 +117,7 @@ class grid_aggregator:
         return refs
 
     def process_refs_horiz(self, refs, refs_const):
+        print('grid refs: ', np.array(refs).reshape(len(refs_const), 1))
         return np.array(refs).reshape(len(refs_const), 1)
 
     def sensitivity_func(self):
