@@ -43,7 +43,7 @@ class wind_mdl:
 
         self.max_Ct = self.floris_get_max_Ct(yaw, ws, wd)
 
-        print('max_Ct: ', self.max_Ct)
+        # print('max_Ct: ', self.max_Ct)
         # print('Yaw values: ', yaw)
         # print('Yaw times horiz: ', yaw*self.horiz_len)
         # print('Ct values: ', Ct)

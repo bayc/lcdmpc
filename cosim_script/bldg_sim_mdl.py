@@ -2,7 +2,7 @@ import numpy as np
 
 class bldg_sim_mdl:
     def __init__(self, dt, ms_dot, T_sa, T_z, T_e, current_time):
-    # bldg fan power coefficients
+        # bldg fan power coefficients
         self.a0 = 0.0029
         self.a1 = -0.0151
         self.a2 = 0.1403
@@ -11,16 +11,16 @@ class bldg_sim_mdl:
         self.hvac_cop = 3 # hvac cop
 
         # initial values of room air and wall temperatures
-        self.T_z = np.array(T_z)
-        self.T_e = T_e
+        self.T_z = np.array(T_z) # room air temp
+        self.T_e = T_e # room wall temp
         self.x = np.array([[T_z,T_e]]) # states for Kalman filter
 
         self.dt = dt # timestep in hrs
         self.i_sim = current_time # current simulation time index
-        # inputs = mass flow rate, supply air temp, internal heat (kW),
-        # solar gain (kW), and outside air temperature 
+        # inputs = mass flow rate, supply air temp 
         self.inputs = [ms_dot, T_sa]
-        # self.disturb = [T_oa, Q_internal, Q_solar]
+        # disturbances = internal heat (kW), # solar gain (kW), 
+        # and outside air temperature
         self.disturb_keys = ['T_outside', 'Q_internal', 'Q_solar']
 
         self.reinit()
@@ -31,16 +31,18 @@ class bldg_sim_mdl:
         self.C_r_inv = np.array([[0.01626433]]) # room air capacitance inverse
         self.R_re_inv = np.array([[8.845245]]) # room air to wall resistance inverse
         self.R_ra_inv = np.array([[3.42398]]) # room air to outside air resistance inverse
-        self.C_e_inv = np.array([[0.0009977]]) # external wall equivalent cpaacitance inverse
-        self.R_ea_inv = np.array([[22.2297201]]) # external wal to outside air resistance inverse
+        self.C_e_inv = np.array([[0.0009977]]) # external wall equivalent capacitance inverse
+        self.R_ea_inv = np.array([[22.2297201]]) # external wall to outside air resistance inverse
         
         # Uncertainty matrices
         self.P = np.array([[2,0],[0,2]]) # covariance matrix of the building states
         self.R = 0.1 # variance in room temperature measurement
 
     def simulate(self, current_time, inputs, disturb, v):
+        # current simulation time step
         self.i_sim = current_time
 
+        # parse inputs and disturbances
         ms_dot = inputs[1]
         T_sa = inputs[2]
 
@@ -48,6 +50,7 @@ class bldg_sim_mdl:
         Q_int = disturb[1]
         Q_solar = disturb[2]
 
+        # advance building simulation
         bldg_outputs = self.bldg_simulation_step(ms_dot, T_sa, Q_int, Q_solar, T_oa)
         self.outputs = bldg_outputs
 
@@ -72,8 +75,9 @@ class bldg_sim_mdl:
         """
         return x[0][0]
     
-    def bldg_sim_filter_update(self, EP_data, n_steps=6, R=None, \
-                               args=(), hx_args=(), residual=np.subtract):
+    def bldg_sim_filter_update(
+            self, EP_data, n_steps=6, R=None, args=(), hx_args=(), residual=np.subtract
+        ):
         # Run filter update at start of each day for n_filter_steps to match
         # initial conditions with E+ simulation
         
@@ -93,21 +97,20 @@ class bldg_sim_mdl:
             T_r_EP = EP_data[self.i_sim,:][0]
             z = np.asarray([z], float) # output value for Kalman filter update
             
-     # Calculating Kalman filter gain
+        # Calculating Kalman filter gain
             H = self.HJacobian(self.x, *args)
             PHT = dot(self.P, H.T)
             self.S = dot(H, PHT) + R
             self.K = PHT.dot(np.linalg.inv(self.S))
             hx = self.Hx(self.x, *hx_args)
-     # Measurement update applied to states
+        # Measurement update applied to states
             self.x = self.x + dot(self.K, self.res)
             self.T_z = self.x[0][0]
             self.T_e = self.x[1][0]
             
-    # update covariance matrix
+        # update covariance matrix
             I_KH = self._I - dot(self.K, H)
-            self.P = dot(I_KH, self.P).dot(I_KH.T) \
-                     + dot(self.K, R).dot(self.K.T)
+            self.P = dot(I_KH, self.P).dot(I_KH.T) + dot(self.K, R).dot(self.K.T)
         
     def bldg_simulation_step(self, ms_dot, T_sa, Q_int, Q_solar, T_oa):
         # all inputs to the 3R2C model
@@ -152,10 +155,3 @@ class bldg_sim_mdl:
         T_ma = 0.3*T_oa + (1 - 0.3)*T_z
         P_chill = 1.005/self.hvac_cop*ms_dot*(T_ma - T_sa)
         return P_chill
-
-        # self.bldg_power_model(
-        #     T_sa,
-        #     ms_dot,
-        #     T_oa + self.Bd_mean_inputs[0],
-        #     T_z + self.Cy_mean_outputs
-        # )

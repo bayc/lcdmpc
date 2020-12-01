@@ -102,7 +102,7 @@ class bldg_data_driven_mdl:
 
         # Set penalty for last power to zero
         # Q[-1] = np.zeros(len(Q))
-        print('Building Q: ', Q)
+        # print('Building Q: ', Q)
         return Q
 
     def process_S(self, S):
@@ -124,14 +124,14 @@ class bldg_data_driven_mdl:
         return refs
 
     def process_refs_horiz(self, refs, refs_const, V):
-        print('refs: ', refs)
-        print('refs_const: ', refs_const)
+        # print('refs: ', refs)
+        # print('refs_const: ', refs_const)
         refs = (np.array(refs_const) \
             - np.array([0, self.truth_model_Pwr]*self.horiz_len) \
             + np.array([self.Cy_lin]*self.horiz_len).flatten() \
             + np.array([self.Dyu_lin]*self.horiz_len).flatten() \
             + np.array([self.Dyd_lin]*self.horiz_len).flatten()).reshape(len(refs_const), 1)
-        print('refs after: ', refs)
+        # print('refs after: ', refs)
         return refs
 
     def get_forecast(self, current_time, disturbance_data):

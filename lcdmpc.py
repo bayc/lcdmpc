@@ -25,11 +25,13 @@ class LCDMPC():
         self.time_step = time_step
 
     def build_subsystem(self, idn, control_model, truth_model, inputs, outputs,
-        refs, horiz_len, Beta, disturbance_file, nodeID=None, nodeName=None,
+        horiz_len, Beta, disturbance_file, refs=None, refs_total=None, nodeID=None, nodeName=None,
         optOptions=None):
         # create subsystem object
         subsys = subsystem(self, idn, control_model, truth_model, inputs,
-            outputs, refs, horiz_len, Beta, disturbance_file, self.current_time, nodeID=nodeID, nodeName=nodeName, optOptions=optOptions)
+            outputs, horiz_len, Beta, disturbance_file, self.current_time,
+            refs=refs, refs_total=refs_total, nodeID=nodeID, nodeName=nodeName,
+            optOptions=optOptions)
         # append it to subsystem list
         self.subsystems.append(subsys)
 
@@ -38,10 +40,10 @@ class LCDMPC():
         outputs = []
         for subsys in self.subsystems:
             u_applied = subsys.uConv[:subsys.control_model.numDVs]
-            print('u_applied: ', u_applied)
+            # print('u_applied: ', u_applied)
             disturb = subsys.d
             outputs.append(subsys.simulate_truth(self.current_time, u_applied, disturb))
-            print('outputs: ', outputs)
+            # print('outputs: ', outputs)
 
         # TODO: change to date-time; update in other places
         self.current_time = self.current_time + 1
@@ -97,7 +99,7 @@ class LCDMPC():
         """
         for subsys in self.subsystems:
             subsys.update_Z()
-            print('self.Z subsys: ', subsys.Z)
+            # print('self.Z subsys: ', subsys.Z)
 
     def communicate(self):
         """
@@ -129,8 +131,11 @@ class LCDMPC():
         Calculate the sensitivities of the subsystem to the upstream 
         systems.
         """
-        for subsys in self.subsystems:
-            subsys.calc_sens()
+        gamma = []
+        for i, subsys in enumerate(self.subsystems):
+            gamma.append(subsys.calc_sens())
+
+        return gamma
 
     def calc_obj(self):
         for subsys in self.subsystems:
@@ -169,9 +174,12 @@ class LCDMPC():
 
 
 class subsystem():
-    def __init__(self, obj, idn, control_model, truth_model, inputs, outputs, refs, horiz_len, 
-                 Beta, disturbance_file, current_time, upstream=None, downstream=None, 
+    def __init__(self, obj, idn, control_model, truth_model, inputs, outputs,
+                 horiz_len, Beta, disturbance_file, current_time, 
+                 refs=None, refs_total=None, upstream=None, downstream=None, 
                  nodeID=None, nodeName=None, optOptions=None):
+        self.gamma_scale = control_model.gamma_scale
+
         # self.Q = Q
         # self.S = S
         # self.count = 0
@@ -181,24 +189,31 @@ class subsystem():
         
         self.truth_model = truth_model
         self.control_model = control_model
-        self.refs = refs 
-        self.refs_const = copy.deepcopy(self.refs)
-        self.refs = self.control_model.process_refs(self.refs)
+
+        self.horiz_len = horiz_len
+        self.Beta = Beta
+        
+        if refs is not None:
+            self.refs = refs 
+            self.refs_const = copy.deepcopy(self.refs)
+            self.refs = self.control_model.process_refs(self.refs)
+            self.refs = self.refs*self.horiz_len
+            self.refs_const = self.refs_const*self.horiz_len
+
+        if refs_total is not None:
+            self.refs_total = refs_total
+            self.refs = self.control_model.process_refs_horiz(refs_total=self.refs_total, current_time=self.current_time)
         # self.refs = self.refs - self.control_model.truth_model_Pwr \
         #     + self.control_model.Cy_lin \
         #     + self.control_model.Dyu_lin \
         #     + self.control_model.Dyd_lin
         # print('initial refs: ', self.refs)
-        self.horiz_len = horiz_len
-        self.Beta = Beta
 
         self.disturbance_file = disturbance_file
         self.disturbance_data = pd.read_csv(self.disturbance_file)
         self.update_forecast(current_time)
 
         self.y = self.control_model.Cy_mean_outputs
-        self.refs = self.refs*self.horiz_len
-        self.refs_const = self.refs_const*self.horiz_len
 
         self.V = np.zeros((np.shape(self.control_model.Bv)[1]*self.horiz_len, 1))
 
@@ -297,14 +312,22 @@ class subsystem():
         # if self.current_time == 180:
         #     self.refs_const[1::2] = [self.refs_const[1] - 10]*self.horiz_len
 
-        self.refs = self.control_model.process_refs_horiz(self.refs, self.refs_const)
+        if hasattr(self, 'refs_total'):
+            self.refs = self.control_model.process_refs_horiz(
+                refs_total=self.refs_total, current_time=self.current_time
+            )
+        else:
+            self.refs = self.control_model.process_refs_horiz(
+                self.refs, self.refs_const
+            )
+        
         # self.refs = np.array(self.refs_const) \
         #     - np.array([0, self.control_model.truth_model_Pwr]*self.horiz_len) \
         #     + np.array([self.control_model.Cy_lin]*self.horiz_len).flatten() \
         #     + np.array([self.control_model.Dyu_lin]*self.horiz_len).flatten() \
         #     + np.array([self.control_model.Dyd_lin]*self.horiz_len).flatten()
         # print('**********Refs: ', self.refs)
-        self.refs_plot.append(self.refs_const[0:2])
+        # self.refs_plot.append(self.refs_const[0:2])
 
         self.A = control_model.A
         self.Bu = control_model.Bu
@@ -404,14 +427,14 @@ class subsystem():
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T))
         # print('opt_control: ', self.uConv[:self.control_model.numDVs])
-        print('objective function: ', obj_func)
-        print('self.Y: ', self.Y)
+        # print('objective function: ', obj_func)
+        # print('self.Y: ', self.Y)
         # print('self.Nz: ', self.Nz)
         # print('self.Dy: ', self.control_model.Cy)
         # print('self.My:', self.Fy)
         
-        print('optimized variables: ', self.uOpt)
-        print('convex combination: ', self.uConv)
+        # print('optimized variables: ', self.uOpt)
+        # print('convex combination: ', self.uConv)
         # print('UPDATEY SELF.D: ', self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ))
@@ -494,7 +517,7 @@ class subsystem():
 
     def update(self):
         self.H = dot(dot(tp(self.My), self.Q), self.My) + self.S
-        self.E_1 = self.E
+        # self.E_1 = self.E
         self.E = dot(dot(tp(self.Ny), self.Q), self.Ny)
         # print('My: ', np.shape(self.My))
         # print('Q: ', np.shape(self.Q))
@@ -530,17 +553,17 @@ class subsystem():
         #             self.control_model.Bd_mean_inputs, self.horiz_len
         #         ).reshape(np.shape(self.Py)[1], 1)) - self.refs)) \
         #        + 0.5*dot(tp(self.Mz), self.Psi)
-        print('shape Cy: ', np.shape(self.Cy))
-        print('Cy: ', self.Cy)
-        print('shape Bv: ', np.shape(self.Bv))
-        print('shape My: ', np.shape(self.My))
-        print('shape Q: ', np.shape(self.Q))
-        print('shape Fy: ', np.shape(self.Fy))
-        print('shape x0: ', np.shape(self.x0))
-        print('shape Ny: ', np.shape(self.Ny))
-        print('shape V: ', np.shape(self.V))
-        print('shape Py: ', np.shape(self.Py))
-        print('shape D: ', self.D)
+        # print('shape Cy: ', np.shape(self.Cy))
+        # print('Cy: ', self.Cy)
+        # print('shape Bv: ', np.shape(self.Bv))
+        # print('shape My: ', np.shape(self.My))
+        # print('shape Q: ', np.shape(self.Q))
+        # print('shape Fy: ', np.shape(self.Fy))
+        # print('shape x0: ', np.shape(self.x0))
+        # print('shape Ny: ', np.shape(self.Ny))
+        # print('shape V: ', np.shape(self.V))
+        # print('shape Py: ', np.shape(self.Py))
+        # print('shape D: ', self.D)
         # print('shape tile: ', np.tile(
         #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
         #         ))
@@ -565,9 +588,9 @@ class subsystem():
         # print('term3c: ', dot(self.Py, self.D - np.tile(
         #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
         #         )))
-        print('term3d: ', self.refs)
-        print('shape of Mz: ', np.shape(self.Mz))
-        print('shape of Psi: ', np.shape(self.Psi))
+        # print('term3d: ', self.refs)
+        # print('shape of Mz: ', np.shape(self.Mz))
+        # print('shape of Psi: ', np.shape(self.Psi))
         # print('term4: ', 0.5*dot(tp(self.Nz), self.Psi))
 
 
@@ -583,7 +606,9 @@ class subsystem():
 
     def calc_sens(self):
         # self.gamma = self.control_model.calculate_sens(self)
-        self.gamma = 2*(dot(self.E_1, self.V) + self.T \
+        # self.gamma = 2*(dot(self.E_1, self.V) + self.T \
+                #    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
+        self.gamma = 2*self.gamma_scale*(dot(self.E, self.V) + self.T \
                    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
         # print('self.E_1: ', self.E_1)
         # print('self.V: ', self.V)
@@ -593,7 +618,9 @@ class subsystem():
         # print('self.My: ', self.My)
         # print('self.uConv: ', self.uConv)
         
-        print('gamma: ', self.gamma)
+        # print('gamma: ', self.gamma)
+
+        return self.gamma
 
     def update_inputs(self):
         self.inputs = self.control_model.update_inputs(
@@ -621,6 +648,11 @@ class subsystem():
             else:
                 idx = np.where(np.array(obj.subsystems[upstream].control_model.Z_idn) == self.idn)[0][0]
                 idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
+                # print('i: ', i)
+                # print('num_upstream: ', self.control_model.num_upstream)
+                # print('upstream: ', upstream)
+                # print('idx: ', idx)
+                # print('idx_range: ', idx_range)
                 self.V[i::self.control_model.num_upstream] = obj.subsystems[upstream].Z[idx::idx_range]
                 # self.V = np.array([[val] for \
                 #     val in obj.subsystems[upstream].Z])
@@ -797,7 +829,7 @@ class subsystem():
                 - np.tile(self.control_model.Cz_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
                 - np.tile(self.control_model.Dzu_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
                 - np.tile(self.control_model.Dzd_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1])
-        print('Z after: ', self.Z)
+        # print('Z after: ', self.Z)
         # print('size of self.Z: ', np.shape(self.Z))
 
     def sys_matrices(self):       
@@ -845,9 +877,9 @@ class subsystem():
         Mytmp0 = self.Dyu
         Mytmp0Shape = np.shape(Mytmp0)
         # print('shape Dyu: ', np.shape(self.Dyu))
-        print('shape Cy: ', np.shape(self.Cy))
-        print('shape Bu: ', np.shape(self.Bu))
-        print('shape Mytmp0: ', np.shape(Mytmp0))
+        # print('shape Cy: ', np.shape(self.Cy))
+        # print('shape Bu: ', np.shape(self.Bu))
+        # print('shape Mytmp0: ', np.shape(Mytmp0))
         Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))
         # print('shape Mytmp: ', np.shape(Mytmp))
         for i in range(self.horiz_len - 1):
