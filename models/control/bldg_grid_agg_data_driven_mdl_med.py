@@ -54,22 +54,22 @@ class bldg_grid_agg_data_driven_mdl_med:
 
         # Model matrices
         # self.A = np.array([[0.9931]]) # 5 minute model
-        self.A = np.array([[0.9794]]) # 1 minute model
+        self.A = np.array([[0.9959]]) # 1 minute model
         # coefficients for Q_hvac (-ve value for cooling) - self.mean_inputs(4)
         # self.Bu = np.array([[0.0001263, 0.0, 0.0]])  # 5 minute model
-        self.Bu = np.array([[0.0282, 0.0, 0.0]]) # 1 minute model
+        self.Bu = np.array([[0.0127, 0.0, 0.0]]) # 1 minute model
         self.Bv = np.array([[0.0]])
         # self.Bd = np.array([[0.0004864, 0.0003279, 0.0003766]])  # 5 minute data
-        self.Bd = np.array([[0.0048, 0.2595, 0.0091]]) # 1 minute model
+        self.Bd = np.array([[0.0046, 0.0324, 0.0197]]) # 1 minute model
 
         # filter parameter
-        self.K = 0.9794
+        self.K = 0.9959
 
         # mean inputs used when model was identified
         self.Bu_mean_inputs = np.array([0.0, 0.0, 0.0])
-        self.Bd_mean_inputs = np.array([[28.9500], [0.0], [0.0]])
+        self.Bd_mean_inputs = np.array([[28.7840], [0.0], [0.0]])
         self.Cy_mean_outputs = np.array([
-            [24.33],
+            [23.8812],
             [self.truth_model_Pwr],
             [self.truth_model_Pwr]
         ])
@@ -123,7 +123,7 @@ class bldg_grid_agg_data_driven_mdl_med:
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting
-        return Q*1.0e-3
+        return Q*1.0e-4
 
     def process_S(self, S):
         # manual scaling of weight parameters
@@ -198,7 +198,7 @@ class bldg_grid_agg_data_driven_mdl_med:
     def add_con_group(self, optProb):
         optProb.addConGroup('hvac_con', self.horiz_len, lower=0, upper=0)
         optProb.addConGroup(
-            'T_building_con', self.horiz_len, lower=21.5, upper=24.5
+            'T_building_con', self.horiz_len, lower=20.5, upper=25.5
         )
 
         return optProb

@@ -41,7 +41,7 @@ class grid_aggregator:
             np.vstack(
                 [
                     [1.0]*self.num_downstream,
-                    -1.0*np.eye(self.num_downstream)
+                    -1.0*np.eye(self.num_downstream) # reference decided to send to buildings
                 ]
             )
         )
@@ -49,7 +49,7 @@ class grid_aggregator:
             np.vstack(
                 [
                     [0.0]*self.num_downstream,
-                    np.eye(self.num_downstream)
+                    np.eye(self.num_downstream) # building powers
                 ]
             )
         )

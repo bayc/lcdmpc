@@ -30,7 +30,7 @@ tmp = opt.LCDMPC(start_time, dt)
 
 time = 20       # Length of simulation in minutes
 horiz_len = 2   # Prediction horizion length
-commuincation_iterations = 3 # number of communications between subsystems
+commuincation_iterations = 5 # number of communications between subsystems
 Beta = 0.0      # Convex combination parameter for control action
 
 time_array = np.arange(start_time, (start_time + time), dt)
@@ -39,7 +39,7 @@ bldg1_disturb_file = 'input/ROM_simulation_data_interp.csv'
 bldg1_small_disturb_file = 'input/ROM_simulation_data_small_office.csv'
 
 num_buildings_large = 3
-num_buildings_medium = 0
+num_buildings_medium = 3
 num_buildings_small = 0
 num_buildings_total = num_buildings_large + num_buildings_medium + num_buildings_small
 
@@ -137,14 +137,14 @@ for i in range(num_buildings_large):
 
 for i in range(num_buildings_medium):
     building_control_models.append(
-        bldg_data_driven_mdl_doe_med(
+        bldg_grid_agg_data_driven_mdl_med(
             ms_dot_medium, T_sa_medium, T_z_medium, horiz_len, energy_red_weight[i],
             Qint_std[i], Qsol_std[i], Qint_scale[i], Qsol_scale[i],
             Qint_offset[i], Qsol_offset[i]
         )
     )
     building_truth_models.append(
-        bldg_sim_mdl_doe_med(dt/60, ms_dot_medium, T_sa_medium, T_z_medium, T_e_medium, start_time,
+        bldg_sim_mdl_med(dt/60, ms_dot_medium, T_sa_medium, T_z_medium, T_e_medium, start_time,
         Qint_std[i], Qsol_std[i], Qint_scale[i], Qsol_scale[i],
         Qint_offset[i], Qsol_offset[i])
     )
@@ -171,20 +171,22 @@ tmp.build_subsystem(0, grid_agg1_cont, grid_agg1_truth,
     optOptions=grid_optoptions)
 
 for i in range(num_buildings_large):
-    print('i large: ', i+1)
-    tmp.build_subsystem(i+1, building_control_models[i], building_truth_models[i],
+    print('i large: ', i + 1)
+    tmp.build_subsystem(i + 1, building_control_models[i], building_truth_models[i],
     inputs_large, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs1,
     optOptions=bldg_optoptions)
 
 for i in range(num_buildings_medium):
-    print('i medium: ', i+1)
-    tmp.build_subsystem(i+1, building_control_models[i], building_truth_models[i],
-    inputs_medium, outputs1, horiz_len, Beta, bldg1_small_disturb_file, refs=refs1,
+    print('i medium: ', i + 1 + num_buildings_large)
+    ind = i + 1 + num_buildings_large
+    tmp.build_subsystem(ind, building_control_models[ind-1], building_truth_models[ind-1],
+    inputs_medium, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs1,
     optOptions=bldg_optoptions)
 
 for i in range(num_buildings_small):
-    print('i small: ', i+1+num_buildings_large)
-    tmp.build_subsystem(i+1+num_buildings_large, building_control_models[i], building_truth_models[i],
+    print('i small: ', i + 1 + num_buildings_large + num_buildings_medium)
+    ind = i + 1 + num_buildings_large + num_buildings_medium
+    tmp.build_subsystem(ind, building_control_models[ind-1], building_truth_models[ind-1],
     inputs_small, outputs1, horiz_len, Beta, bldg1_small_disturb_file, refs=refs1,
     optOptions=bldg_optoptions)
 
@@ -256,8 +258,8 @@ for i in range(len(outputs_all)):
     total_power.append(sum_of_powers)
     grid_prefs_total.append(sum_of_grid_prefs)
 
-T_lower = 21.5
-T_upper = 24.5
+T_lower = 20.5
+T_upper = 25.5
 P_lower = 0.0
 P_upper = 100.0
 

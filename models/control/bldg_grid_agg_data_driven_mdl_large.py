@@ -198,7 +198,7 @@ class bldg_grid_agg_data_driven_mdl_large:
     def add_con_group(self, optProb):
         optProb.addConGroup('hvac_con', self.horiz_len, lower=0, upper=0)
         optProb.addConGroup(
-            'T_building_con', self.horiz_len, lower=21.5, upper=24.5
+            'T_building_con', self.horiz_len, lower=20.5, upper=25.5
         )
 
         return optProb

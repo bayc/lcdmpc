@@ -37,11 +37,11 @@ class bldg_sim_mdl_med:
 
         # 3R2C model parameters (inverse of the values)
         # self.C_r_inv = np.array([[2.3488E-4]]) # room air capacitance inverse
-        self.C_r_inv = np.array([[2.3488E-3]]) # room air capacitance inverse
-        self.R_re_inv = np.array([[8.5977E-1]]) # room air to wall resistance inverse
-        self.R_ra_inv = np.array([[9.1985E-4]]) # room air to outside air resistance inverse
-        self.C_e_inv = np.array([[1.10275E-4]]) # external wall equivalent cpaacitance inverse
-        self.R_ea_inv = np.array([[5.8972E-1]]) # external wal to outside air resistance inverse
+        self.C_r_inv = np.array([[0.38058648]]) # room air capacitance inverse
+        self.R_re_inv = np.array([[0.32522453]]) # room air to wall resistance inverse
+        self.R_ra_inv = np.array([[0.56372815]]) # room air to outside air resistance inverse
+        self.C_e_inv = np.array([[0.12042175]]) # external wall equivalent cpaacitance inverse
+        self.R_ea_inv = np.array([[1.11360802]]) # external wal to outside air resistance inverse
         
         # Uncertainty matrices
         self.P = np.array([[2,0],[0,2]]) # covariance matrix of the building states

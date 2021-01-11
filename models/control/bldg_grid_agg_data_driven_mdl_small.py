@@ -117,7 +117,7 @@ class bldg_grid_agg_data_driven_mdl_small:
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting
-        return Q*1.0e-3
+        return Q*1.0e-5
 
     def process_S(self, S):
         # manual scaling of weight parameters
