@@ -1173,7 +1173,7 @@ class subsystem():
         self.Q = np.diag(np.ones(self.nxMy))
         self.Q = self.control_model.process_Q(self.Q)
         
-        self.S = np.diag(np.zeros(self.nyMy))
+        self.S = np.diag(np.ones(self.nyMy))
         self.S = self.control_model.process_S(self.S)
 
     def mat_sizes(self):
