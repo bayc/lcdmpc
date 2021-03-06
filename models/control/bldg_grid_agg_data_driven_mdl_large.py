@@ -8,7 +8,7 @@ class bldg_grid_agg_data_driven_mdl_large:
     def __init__(self, ms_dot, T_sa, T_z, horiz_len, energy_red_weight,
     Qint_std, Qsol_std, Qint_scale, Qsol_scale, Qint_offset, Qsol_offset):
         # TODO: normalize to make automatic
-        self.gamma_scale = 1000
+        self.gamma_scale = 10
 
         # fan power (kW) model coefficients
         self.a0 = 0.0029
@@ -117,19 +117,25 @@ class bldg_grid_agg_data_driven_mdl_large:
         # Set penalties for temperature to zero
         for i in np.arange(0, len(Q), 3):
             Q[i] = np.zeros(len(Q))
+            # Q[i] = Q[i]*1.0e-2 # 0 for combined opt
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
+        # for i in np.arange(2, len(Q), 3):
+        #     Q[i] = np.zeros(len(Q))
+            # Q[i] = Q[i]*1.0e-4
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting
-        return Q*1.0e-5
+        # return Q*1.0e-5
+        return Q
 
     def process_S(self, S):
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting
-        # S = S*1.0e-5
-        S = S*self.energy_red_weight
+        # S = S*5.0e-8
+        S = S*0.0
+        # S = S*self.energy_red_weight
         return S
 
     def filter_update(self, states, outputs):
@@ -138,7 +144,7 @@ class bldg_grid_agg_data_driven_mdl_large:
         return states
 
     def process_refs(self, refs):
-        refs = refs - self.truth_model_Pwr \
+        refs = refs - np.array([0, self.truth_model_Pwr, self.truth_model_Pwr]) \
             + self.Cy_lin \
             + self.Dyu_lin \
             + self.Dyd_lin
@@ -246,7 +252,7 @@ class bldg_grid_agg_data_driven_mdl_large:
         self.Cz = np.array([[Dz[3]]])
         self.Dzu = np.array([np.hstack(([0.0], Dz[1], Dz[0]))])
         self.Dzv = np.array([[0.0]])
-        self.Dzd = np.array([np.hstack((Dz[2], [0.0, 0.0]))])        
+        self.Dzd = np.array([np.hstack((Dz[2], [0.0, 0.0]))])
 
     def update_inputs(self, states, control_actions, outputs):
         ms_dot = control_actions[1]

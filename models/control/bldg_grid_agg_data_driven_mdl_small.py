@@ -132,7 +132,7 @@ class bldg_grid_agg_data_driven_mdl_small:
         return states
 
     def process_refs(self, refs):
-        refs = refs - self.truth_model_Pwr \
+        refs = refs - np.array([0, self.truth_model_Pwr, self.truth_model_Pwr]) \
             + self.Cy_lin \
             + self.Dyu_lin \
             + self.Dyd_lin

@@ -116,14 +116,18 @@ class bldg_grid_agg_data_driven_mdl_med:
     def process_Q(self, Q):
         # Set penalties for temperature to zero
         for i in np.arange(0, len(Q), 3):
-            Q[i] = np.zeros(len(Q))
+            # Q[i] = np.zeros(len(Q))
+            Q[i] = Q[i]*1.0e-2
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
+        for i in np.arange(2, len(Q), 3):
+            # Q[i] = np.zeros(len(Q))
+            Q[i] = Q[i]*1.0e-4
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting
-        return Q*1.0e-4
+        return Q
 
     def process_S(self, S):
         # manual scaling of weight parameters
@@ -138,7 +142,7 @@ class bldg_grid_agg_data_driven_mdl_med:
         return states
 
     def process_refs(self, refs):
-        refs = refs - self.truth_model_Pwr \
+        refs = refs - np.array([0, self.truth_model_Pwr, self.truth_model_Pwr]) \
             + self.Cy_lin \
             + self.Dyu_lin \
             + self.Dyd_lin
@@ -246,7 +250,7 @@ class bldg_grid_agg_data_driven_mdl_med:
         self.Cz = np.array([[Dz[3]]])
         self.Dzu = np.array([np.hstack(([0.0], Dz[1], Dz[0]))])
         self.Dzv = np.array([[0.0]])
-        self.Dzd = np.array([np.hstack((Dz[2], [0.0, 0.0]))])      
+        self.Dzd = np.array([np.hstack((Dz[2], [0.0, 0.0]))])
 
     def update_inputs(self, states, control_actions, outputs):
         ms_dot = control_actions[1]
