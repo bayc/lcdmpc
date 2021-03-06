@@ -28,18 +28,19 @@ dt = 1              # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 20       # Length of simulation in minutes
-horiz_len = 2   # Prediction horizion length
-commuincation_iterations = 5 # number of communications between subsystems
-Beta = 0.0      # Convex combination parameter for control action
+time = 20      # Length of simulation in minutes
+horiz_len = 4   # Prediction horizion length
+commuincation_iterations = 3 # number of communications between subsystems
+Beta = 0.5      # Convex combination parameter for control action
 
 time_array = np.arange(start_time, (start_time + time), dt)
 
-bldg1_disturb_file = 'input/ROM_simulation_data_interp.csv'
+# bldg1_disturb_file = 'input/ROM_simulation_data_interp.csv'
 bldg1_small_disturb_file = 'input/ROM_simulation_data_small_office.csv'
+bldg1_disturb_file = 'input/ROM_simulation_data_large_office_denver.csv'
 
 num_buildings_large = 3
-num_buildings_medium = 3
+num_buildings_medium = 0
 num_buildings_small = 0
 num_buildings_total = num_buildings_large + num_buildings_medium + num_buildings_small
 
@@ -52,7 +53,7 @@ T_e_large = 20.
 ms_dot_medium = 4.0
 T_sa_medium = 12.8
 T_oa_medium = 28.95
-T_z_medium = 24.33
+T_z_medium = 23.8812
 T_e_medium = 20.
 
 ms_dot_small = 1.0
@@ -75,14 +76,16 @@ disturb2 = [6.0, 2.0, 2.0]
 outputs1 = [1]
 outputs2 = [1]
 
-refs1 = [[0.2], [20.], [0.0]]
+refs_large = [[-1], [20.], [0.0]]
+refs_medium = [[-0.88], [20.], [0.0]]
+refs_small = [[0], [20.], [0.0]]
 
 disturbance_data = pd.read_csv(bldg1_disturb_file)
 Toa_horiz = disturbance_data.iloc[start_time: start_time + int(time/dt) + horiz_len]['T_outside'].values
 Toa_horiz_normed = Toa_horiz/Toa_horiz[0]
 
 np.random.seed(1)
-grid_agg_ref = np.random.normal(6*num_buildings_small + 30*num_buildings_medium + 60*num_buildings_large, 5.0, int(time/dt) + horiz_len)*Toa_horiz_normed
+grid_agg_ref = np.random.normal(6*num_buildings_small + 30*num_buildings_medium + 60*num_buildings_large, 5.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
 
 refs_grid_total = pd.DataFrame()
 for i in range(int(time/dt) + horiz_len):
@@ -173,26 +176,27 @@ tmp.build_subsystem(0, grid_agg1_cont, grid_agg1_truth,
 for i in range(num_buildings_large):
     print('i large: ', i + 1)
     tmp.build_subsystem(i + 1, building_control_models[i], building_truth_models[i],
-    inputs_large, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs1,
+    inputs_large, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs_large,
     optOptions=bldg_optoptions)
 
 for i in range(num_buildings_medium):
     print('i medium: ', i + 1 + num_buildings_large)
     ind = i + 1 + num_buildings_large
     tmp.build_subsystem(ind, building_control_models[ind-1], building_truth_models[ind-1],
-    inputs_medium, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs1,
+    inputs_medium, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs_medium,
     optOptions=bldg_optoptions)
 
 for i in range(num_buildings_small):
     print('i small: ', i + 1 + num_buildings_large + num_buildings_medium)
     ind = i + 1 + num_buildings_large + num_buildings_medium
     tmp.build_subsystem(ind, building_control_models[ind-1], building_truth_models[ind-1],
-    inputs_small, outputs1, horiz_len, Beta, bldg1_small_disturb_file, refs=refs1,
+    inputs_small, outputs1, horiz_len, Beta, bldg1_small_disturb_file, refs=refs_small,
     optOptions=bldg_optoptions)
 
 connections = [[0, i+1] for i in range(num_buildings_total)] + \
               [[i+1, 0] for i in range(num_buildings_total)]
 
+# connections = None
 tmp.build_interconnections(interconnections=connections)
 
 outputs_all = []
@@ -217,7 +221,9 @@ for i in range(int(time/dt)):
         # Convex summation of control parameters (for stability)
         tmp.convex_sum_cont()
         # Update Z's for downstream subsystems
-        tmp.update_downstream_outputs()        
+        tmp.update_downstream_outputs()
+
+        # tmp.calculate_sensitivities() 
 
         # print('==============================')
         print('communication iteration: ', j)
