@@ -256,7 +256,7 @@ class subsystem():
         # self.V = np.array([[0.0] for _ in range(self.nyNy)])
         
         self.Z = np.zeros((self.nxNz, 1))
-        self.Gamma = np.zeros((self.nxNz, 1))
+        self.gamma = np.zeros((self.nxNz, 1))
         self.Psi = np.zeros((self.nxMz, 1))
         # print('initial horizon refs: ', self.refs)
         self.sol = []
@@ -618,7 +618,7 @@ class subsystem():
         # print('self.My: ', self.My)
         # print('self.uConv: ', self.uConv)
         
-        # print('gamma: ', self.gamma)
+        print('gamma: ', self.gamma)
 
         return self.gamma
 
@@ -665,8 +665,9 @@ class subsystem():
             else:
                 idx = np.where(np.array(obj.subsystems[upstream].control_model.Z_idn) == self.idn)[0][0]
                 idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
-                self.Psi[i::self.control_model.num_upstream] = obj.subsystems[upstream].Gamma[idx::idx_range]
+                self.Psi[i::self.control_model.num_upstream] = obj.subsystems[upstream].gamma[idx::idx_range]
                 # self.Psi = obj.subsystems[upstream].Gamma
+        print('*** 3, Psi: ', self.Psi)
 
     def update_x(self):
         # TODO: add in self.d to class

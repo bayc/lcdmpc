@@ -28,10 +28,10 @@ dt = 1              # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 20      # Length of simulation in minutes
-horiz_len = 4   # Prediction horizion length
+time = 10      # Length of simulation in minutes
+horiz_len = 2   # Prediction horizion length
 commuincation_iterations = 3 # number of communications between subsystems
-Beta = 0.5      # Convex combination parameter for control action
+Beta = 0.1      # Convex combination parameter for control action
 
 time_array = np.arange(start_time, (start_time + time), dt)
 
@@ -39,7 +39,7 @@ time_array = np.arange(start_time, (start_time + time), dt)
 bldg1_small_disturb_file = 'input/ROM_simulation_data_small_office.csv'
 bldg1_disturb_file = 'input/ROM_simulation_data_large_office_denver.csv'
 
-num_buildings_large = 3
+num_buildings_large = 1
 num_buildings_medium = 0
 num_buildings_small = 0
 num_buildings_total = num_buildings_large + num_buildings_medium + num_buildings_small
@@ -223,7 +223,7 @@ for i in range(int(time/dt)):
         # Update Z's for downstream subsystems
         tmp.update_downstream_outputs()
 
-        # tmp.calculate_sensitivities() 
+        tmp.calculate_sensitivities()
 
         # print('==============================')
         print('communication iteration: ', j)

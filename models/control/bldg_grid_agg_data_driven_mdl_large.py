@@ -84,6 +84,8 @@ class bldg_grid_agg_data_driven_mdl_large:
         )
 
         # output equation model matrices
+        # Building outputs are 1) zone temperature, 2) building power, and
+        # 3) error/difference between building power and grid aggregator power reference
         self.Cy = np.array([[1.], self.Cz[0], -1*self.Cz[0]])
         self.Dyu = np.array([[0.0, 0.0, 0.0], self.Dzu[0], -1*self.Dzu[0]])
         self.Dyv = np.array([[0.0], self.Dzv[0], [1.0 - self.Dzv[0]]])
@@ -116,14 +118,14 @@ class bldg_grid_agg_data_driven_mdl_large:
     def process_Q(self, Q):
         # Set penalties for temperature to zero
         for i in np.arange(0, len(Q), 3):
-            Q[i] = np.zeros(len(Q))
-            # Q[i] = Q[i]*1.0e-2 # 0 for combined opt
+            # Q[i] = np.zeros(len(Q))
+            Q[i] = Q[i]*1.0e-2 # 0 for combined opt
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
-        # for i in np.arange(2, len(Q), 3):
-        #     Q[i] = np.zeros(len(Q))
-            # Q[i] = Q[i]*1.0e-4
+        for i in np.arange(2, len(Q), 3):
+            # Q[i] = np.zeros(len(Q))
+            Q[i] = Q[i]*1.0e-4
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting

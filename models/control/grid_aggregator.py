@@ -70,7 +70,15 @@ class grid_aggregator:
         self.Dzd_lin = np.zeros((self.num_downstream, 1))
 
     def process_Q(self, Q):
-        return Q*1.0e-5
+        for i in np.arange(1, len(Q), 4):
+            Q[i] = np.zeros(len(Q))
+        for i in np.arange(2, len(Q), 4):
+            Q[i] = np.zeros(len(Q))
+        for i in np.arange(3, len(Q), 4):
+            Q[i] = np.zeros(len(Q))
+        # print('#########: ', Q)
+        # lkj
+        return Q*1.0e4
 
     def process_S(self, S):
         S = S
@@ -91,12 +99,13 @@ class grid_aggregator:
         self.bldg_Prefs = np.array(self.bldg_Prefs).reshape(
             np.shape(self.bldg_Prefs)[0], 1
         )
+        # print('grid bldg refs: ', self.bldg_Prefs)
         return self.bldg_Prefs
 
     def add_var_group(self, optProb):
         optProb.addVarGroup(
             'bldg_Prefs', self.horiz_len*self.num_upstream, type='c',
-            lower=0.0, upper=100.0, value=5.0
+            lower=0.0, upper=100.0, value=50.0
         )
         self.numDVs = self.num_downstream
         return optProb
@@ -121,8 +130,10 @@ class grid_aggregator:
             refs_start = np.where(refs_total['time'] == current_time)[0][0]
             refs = refs_total['grid_ref'][refs_start: refs_start + self.horiz_len]
             refs = np.array([val for val in refs]).flatten()
+            # print('*** 1: ', np.array(refs).reshape(len(refs), 1))
             return np.array(refs).reshape(len(refs), 1)
         else:
+            # print('*** 2: ', np.array(refs).reshape(len(refs), 1))
             return np.array(refs).reshape(len(refs_const), 1)
 
     def sensitivity_func(self):
