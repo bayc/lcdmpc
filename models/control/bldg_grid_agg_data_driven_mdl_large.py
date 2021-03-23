@@ -119,7 +119,7 @@ class bldg_grid_agg_data_driven_mdl_large:
         # Set penalties for temperature to zero
         for i in np.arange(0, len(Q), 3):
             # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*1.0e-2 # 0 for combined opt
+            Q[i] = Q[i]*1.0e-4 # -2; 0 for combined opt
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
@@ -194,9 +194,9 @@ class bldg_grid_agg_data_driven_mdl_large:
 
     def add_var_group(self, optProb):
         optProb.addVarGroup('Qhvac', self.horiz_len, type='c', 
-                            lower=-200.0, upper=0.0, value=-32.)
+                            lower=-600.0, upper=0.0, value=-32.)
         optProb.addVarGroup('ms_dot', self.horiz_len, type='c', 
-                            lower=0.0, upper=20.0, value=0.8)
+                            lower=0.0, upper=100.0, value=0.8)
         optProb.addVarGroup('T_sa', self.horiz_len, type='c', 
                             lower=10.0, upper=14.0, value=12.8)
 

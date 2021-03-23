@@ -610,15 +610,17 @@ class subsystem():
                 #    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
         self.gamma = 2*self.gamma_scale*(dot(self.E, self.V) + self.T \
                    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
-        # print('self.E_1: ', self.E_1)
-        # print('self.V: ', self.V)
-        # print('self.T: ', self.T)
-        # print('self.Ny: ', self.Ny)
-        # print('self.Q: ', self.Q)
-        # print('self.My: ', self.My)
-        # print('self.uConv: ', self.uConv)
-        
-        print('gamma: ', self.gamma)
+        # if self.idn ==0:
+        #     print('self.E: ', self.E)
+        #     print('self.V: ', self.V)
+        #     print('self.T: ', self.T)
+        #     print('self.Ny: ', self.Ny)
+        #     print('self.Q: ', self.Q)
+        #     print('self.My: ', self.My)
+        #     print('self.uConv: ', self.uConv)
+        # if self.idn == 0:
+        #     print('subsys idn: ', self.idn)
+        #     print('gamma: ', self.gamma)
 
         return self.gamma
 
@@ -657,17 +659,31 @@ class subsystem():
                 # self.V = np.array([[val] for \
                 #     val in obj.subsystems[upstream].Z])
 
+    # def update_Psi(self, obj):
+    #     # TODO: figure out how to make this work when z is more than one value
+    #     for i, upstream in enumerate(self.upstream):
+    #         if upstream=='None':
+    #             self.Psi = np.zeros((self.nxMz, 1))
+    #         else:
+    #             idx = np.where(np.array(obj.subsystems[upstream].control_model.Z_idn) == self.idn)[0][0]
+    #             idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
+    #             self.Psi[i::self.control_model.num_upstream] = obj.subsystems[upstream].gamma[idx::idx_range]
+    #             # self.Psi = obj.subsystems[upstream].Gamma
+    #     print('*** 3, Psi: ', self.Psi)
+    
     def update_Psi(self, obj):
         # TODO: figure out how to make this work when z is more than one value
-        for i, upstream in enumerate(self.upstream):
-            if upstream=='None':
+        for i, downstream in enumerate(self.downstream):
+            if downstream=='None':
                 self.Psi = np.zeros((self.nxMz, 1))
             else:
-                idx = np.where(np.array(obj.subsystems[upstream].control_model.Z_idn) == self.idn)[0][0]
-                idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
-                self.Psi[i::self.control_model.num_upstream] = obj.subsystems[upstream].gamma[idx::idx_range]
+                idx = np.where(np.array(obj.subsystems[downstream].upstream) == self.idn)[0][0]
+                idx_range = len(obj.subsystems[downstream].upstream)
+                self.Psi[i::self.control_model.num_downstream] = obj.subsystems[downstream].gamma[idx::idx_range]
                 # self.Psi = obj.subsystems[upstream].Gamma
-        print('*** 3, Psi: ', self.Psi)
+        # if self.idn == 0:
+            # print('subsys idn: ', self.idn)
+            # print('*** 3, Psi: ', self.Psi)
 
     def update_x(self):
         # TODO: add in self.d to class

@@ -24,6 +24,8 @@ class grid_aggregator:
         # self.disturbances = disturbances
 
         # Model matrices
+        # print(self.num_downstream)
+        # lkj
         self.A = np.zeros((self.num_downstream, self.num_downstream))
         self.Bu = np.zeros((self.num_downstream, self.num_downstream))
         self.Bv = np.zeros((self.num_downstream, self.num_downstream))
@@ -70,15 +72,24 @@ class grid_aggregator:
         self.Dzd_lin = np.zeros((self.num_downstream, 1))
 
     def process_Q(self, Q):
-        for i in np.arange(1, len(Q), 4):
-            Q[i] = np.zeros(len(Q))
-        for i in np.arange(2, len(Q), 4):
-            Q[i] = np.zeros(len(Q))
-        for i in np.arange(3, len(Q), 4):
-            Q[i] = np.zeros(len(Q))
+        # print(Q)
+        # lkj
+        Q = np.zeros(np.shape(Q))
+        Q[0, 0] = 1.0
+        # print(Q)
+        # lkj
+        # for i in range(self.num_downstream):
+        #     for j in np.arange(i+1, len(Q), (self.num_downstream + 1)):
+        #         Q[j] = np.zeros(len(Q))
+        # for i in np.arange(1, len(Q), 4):
+        #     Q[i] = np.zeros(len(Q))
+        # for i in np.arange(2, len(Q), 4):
+        #     Q[i] = np.zeros(len(Q))
+        # for i in np.arange(3, len(Q), 4):
+        #     Q[i] = np.zeros(len(Q))
         # print('#########: ', Q)
         # lkj
-        return Q*1.0e4
+        return Q*1.0e2
 
     def process_S(self, S):
         S = S

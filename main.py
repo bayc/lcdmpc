@@ -28,7 +28,7 @@ dt = 1              # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 10      # Length of simulation in minutes
+time = 60      # Length of simulation in minutes
 horiz_len = 2   # Prediction horizion length
 commuincation_iterations = 3 # number of communications between subsystems
 Beta = 0.1      # Convex combination parameter for control action
@@ -85,7 +85,7 @@ Toa_horiz = disturbance_data.iloc[start_time: start_time + int(time/dt) + horiz_
 Toa_horiz_normed = Toa_horiz/Toa_horiz[0]
 
 np.random.seed(1)
-grid_agg_ref = np.random.normal(6*num_buildings_small + 30*num_buildings_medium + 60*num_buildings_large, 5.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
+grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 50*num_buildings_large, 5.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
 
 refs_grid_total = pd.DataFrame()
 for i in range(int(time/dt) + horiz_len):
