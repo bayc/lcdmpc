@@ -29,7 +29,7 @@ class bldg_grid_agg_data_driven_mdl_large:
         disturbances = np.zeros(len(self.disturb_keys))
         self.reinit(inputs, disturbances)
 
-        self.Z_idn = [0]
+        # self.Z_idn = [0]
 
         # parameters for arbitrarily adjusting input values to create variation
         self.Qint_std = Qint_std

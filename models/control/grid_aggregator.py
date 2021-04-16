@@ -15,7 +15,9 @@ class grid_aggregator:
         disturbances = np.array([0.0])
         self.reinit(inputs, disturbances)
 
-        self.Z_idn = [i + 1 for i in range(self.num_downstream)]
+        # self.Z_idn = [i + 1 for i in range(self.num_downstream)]
+        # print('here: ', self.Z_idn)
+        # lkj
 
     def reinit(self, inputs, disturbances):
         # inputs
@@ -47,6 +49,8 @@ class grid_aggregator:
                 ]
             )
         )
+        print(np.shape(self.Dyu))
+        print(self.Dyu)
         self.Dyv = np.array(
             np.vstack(
                 [
@@ -55,6 +59,9 @@ class grid_aggregator:
                 ]
             )
         )
+        print(np.shape(self.Dyv))
+        print(self.Dyv)
+        # lkj
         self.Dyd = np.zeros((self.num_downstream+1, 1))
 
         self.Cz = np.zeros((self.num_downstream, self.num_downstream))
@@ -76,6 +83,11 @@ class grid_aggregator:
         # lkj
         Q = np.zeros(np.shape(Q))
         Q[0, 0] = 1.0
+        Q[1, 1] = 5.0*1e-7
+        Q[2, 2] = 5.0*1e-7
+        Q[3, 3] = 1.0*1e-10
+        Q[4, 4] = 1.0*1e-10
+        Q[5, 5] = 1.0*1e-10
         # print(Q)
         # lkj
         # for i in range(self.num_downstream):
@@ -116,7 +128,7 @@ class grid_aggregator:
     def add_var_group(self, optProb):
         optProb.addVarGroup(
             'bldg_Prefs', self.horiz_len*self.num_upstream, type='c',
-            lower=0.0, upper=100.0, value=50.0
+            lower=0.0, upper=500.0, value=50.0
         )
         self.numDVs = self.num_downstream
         return optProb
