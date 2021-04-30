@@ -695,8 +695,8 @@ class subsystem():
                 self.Psi[i::self.control_model.num_downstream] = obj.subsystems[downstream].gamma[idx::idx_range]
                 # self.Psi = obj.subsystems[upstream].Gamma
         # if self.idn == 0:
-            # print('subsys idn: ', self.idn)
-            # print('*** 3, Psi: ', self.Psi)
+        # print('subsys idn: ', self.idn)
+        # print('*** 3, Psi: ', self.Psi)
 
     def update_x(self):
         # TODO: add in self.d to class

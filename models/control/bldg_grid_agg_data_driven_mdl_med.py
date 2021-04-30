@@ -114,16 +114,16 @@ class bldg_grid_agg_data_driven_mdl_med:
         )
 
     def process_Q(self, Q):
-        # Set penalties for temperature to zero
+        # Set penalties for temperature ref. tracking
         for i in np.arange(0, len(Q), 3):
             # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*1.0e0 # -2, 0
+            Q[i] = Q[i]*1.0e-2 # -2, 0
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
         for i in np.arange(2, len(Q), 3):
             # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*1.0e-3 # -4, -1
+            Q[i] = Q[i]*1.0e-3 # -4, -1, -3
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting
@@ -202,7 +202,7 @@ class bldg_grid_agg_data_driven_mdl_med:
     def add_con_group(self, optProb):
         optProb.addConGroup('hvac_con', self.horiz_len, lower=0, upper=0)
         optProb.addConGroup(
-            'T_building_con', self.horiz_len, lower=20.5, upper=25.5
+            'T_building_con', self.horiz_len, lower=20.0, upper=23.1
         )
 
         return optProb

@@ -44,8 +44,8 @@ class grid_aggregator:
         self.Dyu = np.array(
             np.vstack(
                 [
-                    [1.0]*self.num_downstream,
-                    -1.0*np.eye(self.num_downstream) # reference decided to send to buildings
+                    -1.0*np.eye(self.num_downstream), # total p_ref power for tracking p_ref from super grid agg
+                    -1.0*np.eye(self.num_downstream) # ref to send to buildings
                 ]
             )
         )
@@ -54,8 +54,8 @@ class grid_aggregator:
         self.Dyv = np.array(
             np.vstack(
                 [
-                    [0.0]*self.num_downstream,
-                    np.eye(self.num_downstream) # building powers
+                    [1.0], # power ref from super grid agg
+                    [np.eye(self.num_downstream)] # building powers
                 ]
             )
         )
@@ -65,7 +65,7 @@ class grid_aggregator:
         self.Dyd = np.zeros((self.num_downstream+1, 1))
 
         self.Cz = np.zeros((self.num_downstream, self.num_downstream))
-        self.Dzu = np.eye(self.num_downstream)
+        self.Dzu = np.eye(self.num_downstream) # total p_ref power to send to super grid agg
         self.Dzv = np.zeros((self.num_downstream, self.num_downstream))
         self.Dzd = np.zeros((self.num_downstream, 1))
 
@@ -85,42 +85,9 @@ class grid_aggregator:
         Q[0, 0] = 1.0
         Q[1, 1] = 5.0*1e-7
         Q[2, 2] = 5.0*1e-7
-        # Q[3, 3] = 5.0*1e-7
-        # Q[4, 4] = 5.0*1e-7
-        # Q[5, 5] = 5.0*1e-7
-        # Q[6, 6] = 5.0*1e-7
-        # Q[7, 7] = 5.0*1e-7
-        # Q[8, 8] = 5.0*1e-7
-        # Q[9, 9] = 5.0*1e-7
-        # Q[10, 10] = 5.0*1e-7
-        # Q[11, 11] = 5.0*1e-7
-        # Q[12, 12] = 5.0*1e-7
-        # Q[13, 13] = 5.0*1e-7
-        # Q[14, 14] = 5.0*1e-7
-        # Q[15, 15] = 5.0*1e-7
-        # Q[16, 16] = 5.0*1e-7
-        # Q[17, 17] = 5.0*1e-7
-        # Q[18, 18] = 5.0*1e-7
-        # Q[19, 19] = 5.0*1e-7
-        # Q[20, 20] = 5.0*1e-7
-        # Q[6, 6] = 1.0
-        # Q[7, 7] = 5.0*1e-7
-        # Q[8, 8] = 5.0*1e-7
-        # Q[9, 9] = 5.0*1e-7
-        # Q[10, 10] = 5.0*1e-7
-        # Q[11, 11] = 5.0*1e-7
-        # Q[12, 12] = 1.0
-        # Q[13, 13] = 5.0*1e-7
-        # Q[14, 14] = 5.0*1e-7
-        # Q[15, 15] = 5.0*1e-7
-        # Q[16, 16] = 5.0*1e-7
-        # Q[17, 17] = 5.0*1e-7
-        # Q[18, 18] = 1.0
-        # Q[19, 19] = 5.0*1e-7
-        # Q[20, 20] = 5.0*1e-7
-        # Q[21, 21] = 5.0*1e-7
-        # Q[22, 22] = 5.0*1e-7
-        # Q[23, 23] = 5.0*1e-7
+        # Q[3, 3] = 1.0*1e-10
+        # Q[4, 4] = 1.0*1e-10
+        # Q[5, 5] = 1.0*1e-10
         # print(Q)
         # lkj
         # for i in range(self.num_downstream):

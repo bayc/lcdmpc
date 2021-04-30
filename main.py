@@ -14,6 +14,7 @@ import lcdmpc as opt
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import pickle
 
 from models.control.bldg_grid_agg_data_driven_mdl_large import bldg_grid_agg_data_driven_mdl_large
 from models.control.bldg_grid_agg_data_driven_mdl_med import bldg_grid_agg_data_driven_mdl_med
@@ -23,12 +24,12 @@ from models.simulation.bldg_sim_mdl_med import bldg_sim_mdl_med
 from models.simulation.bldg_sim_mdl_small import bldg_sim_mdl_small
 from models.control.grid_aggregator import grid_aggregator
 
-start_time = 9*60    # Start time in minutes; 700
+start_time = 11*60    # Start time in minutes; 700
 dt = 1              # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 60*1      # Length of simulation in minutes
+time = 30      # Length of simulation in minutes
 horiz_len = 2   # Prediction horizion length
 commuincation_iterations = 3 # number of communications between subsystems
 Beta = 0.1      # Convex combination parameter for control action
@@ -39,22 +40,23 @@ time_array = np.arange(start_time, (start_time + time), dt)
 bldg1_small_disturb_file = 'input/ROM_simulation_data_small_office.csv'
 bldg1_disturb_file = 'input/ROM_simulation_data_large_office_denver.csv'
 
-num_grid_aggregators = 1
-num_buildings_large = 2
-num_buildings_medium = 3
+num_grid_aggregators = 2
+grid_agg_num_downstream = [2, 2]
+num_buildings_large = 4
+num_buildings_medium = 0
 num_buildings_small = 0
 num_buildings_total = num_buildings_large + num_buildings_medium + num_buildings_small
 
 ms_dot_large = 8.0
 T_sa_large = 12.8
 T_oa_large = 28.
-T_z_large = 22.794
+T_z_large = 22.0 # 22.794
 T_e_large = 20.
 
 ms_dot_medium = 4.0
 T_sa_medium = 12.8
 T_oa_medium = 28.95
-T_z_medium = 23.8812
+T_z_medium = 22.0 # 23.8812
 T_e_medium = 20.
 
 ms_dot_small = 1.0
@@ -86,17 +88,7 @@ Toa_horiz = disturbance_data.iloc[start_time: start_time + int(time/dt) + horiz_
 Toa_horiz_normed = Toa_horiz/Toa_horiz[0]
 
 np.random.seed(1)
-grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 50*num_buildings_large, 5.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
-
-# refs_grid_total = pd.DataFrame()
-# for i in range(int(time/dt) + horiz_len):
-#     refs_grid_total = refs_grid_total.append(
-#         {
-#             'time': start_time + i,
-#             'grid_ref': [[grid_agg_ref[i]]] + [[0.] for i in range(num_buildings_total)]
-#         },
-#         ignore_index=True
-#     )
+grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 35*num_buildings_large, 5.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
 
 bldg_optoptions = {
     'Major feasibility tolerance': 1e1,
@@ -111,17 +103,16 @@ grid_optoptions = {
     'Proximal iterations limit': 1000,
 }
 
-# num_downstream1 = num_buildings_total
-grid_agg_num_downstream = [5]
-
 grid_agg_cont_models = []
 grid_agg_truth_models = []
 
 building_control_models = []
 building_truth_models = []
 
-Qint_scale = np.random.normal(1.3, 0.2, num_buildings_total).tolist()
-Qsol_scale = np.random.normal(1.5, 0.5, num_buildings_total).tolist()
+Qint_scale = np.random.normal(1.15, 0.2, num_buildings_total).tolist() # 1.3
+Qsol_scale = np.random.normal(1.3, 0.5, num_buildings_total).tolist() # 1.5
+# Qint_scale = [1.0] * num_buildings_total
+# Qsol_scale = [1.0] * num_buildings_total
 
 Qint_offset = [0.0]*num_buildings_total
 Qsol_offset = [0.0]*num_buildings_total
@@ -217,24 +208,19 @@ for i in range(num_buildings_small):
     inputs_small, outputs1, horiz_len, Beta, bldg1_small_disturb_file, refs=refs_small,
     optOptions=bldg_optoptions)
 
-connections = [[0, i+1] for i in range(num_buildings_total)] + \
-              [[i+1, 0] for i in range(num_buildings_total)]
-# print (connections)
-# lkj
-# connections = [
-#     [0, 2],
-#     [2, 0],
-#     [0, 3],
-#     [3, 0],
-#     [0, 4],
-#     [4, 0],
-#     [1, 5],
-#     [5, 1],
-#     [1, 6],
-#     [6, 1],
-#     [1, 7],
-#     [7, 1]
-# ]
+# connections = [[0, i+1] for i in range(num_buildings_total)] + \
+#               [[i+1, 0] for i in range(num_buildings_total)]
+
+connections = [
+    [0, 2],
+    [2, 0],
+    [0, 3],
+    [3, 0],
+    [1, 4],
+    [4, 1],
+    [1, 5],
+    [5, 1]
+]
 
 # connections = None
 tmp.build_interconnections(interconnections=connections)
@@ -309,8 +295,11 @@ for i in range(len(outputs_all)):
     total_power.append(sum_of_powers)
     grid_prefs_total.append(sum_of_grid_prefs)
 
-T_lower = 20.5
-T_upper = 25.5
+with open('results.p', 'wb') as handle:
+    pickle.dump([tmp, plot_temps, plot_bldg_powers, total_power, grid_prefs_total, disturbance_data], handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+T_lower = 20.0
+T_upper = 23.3
 P_lower = 0.0
 P_upper = 100.0
 
@@ -339,7 +328,7 @@ ax2.plot(
 ax2.plot(
     time_array[dt_num_offset:], T_upper*np.ones(len(time_array))[dt_num_offset:], '--k'
 )
-ax2.legend(bldg_temp_legend + ['Outdoor Air Temp'])
+# ax2.legend(bldg_temp_legend + ['Outdoor Air Temp'])
 xticks = ax2.get_xticks()
 ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
 ax2.set_title('Building Temperatures')
@@ -354,7 +343,7 @@ for i in range(num_buildings_total):
         np.array(plot_bldg_powers[i]).flatten()[dt_num_offset:]
     )
     bldg_power_legend.append('Bldg ' + str(i))
-ax2.legend(bldg_power_legend)
+# ax2.legend(bldg_power_legend)
 xticks = ax2.get_xticks()
 ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
 ax2.set_title('Building Powers')
@@ -397,3 +386,5 @@ ax4.set_ylabel('Error [%]')
 ax4.set_xlabel('Time')
 
 plt.show()
+
+plt.savefig('results.png', bbox_inches='tight')
