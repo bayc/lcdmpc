@@ -51,6 +51,7 @@ class grid_aggregator:
         )
         print(np.shape(self.Dyu))
         print(self.Dyu)
+        # lkj
         self.Dyv = np.array(
             np.vstack(
                 [

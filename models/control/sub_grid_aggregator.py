@@ -4,12 +4,13 @@ from numpy import dot as dot
 from numpy import transpose as tp
 from autograd import grad    # the only autograd function you may ever need
 
-class grid_aggregator:
-    def __init__(self, horiz_len, num_downstream):
+class sub_grid_aggregator:
+    def __init__(self, horiz_len, num_downstream, num_upstream):
         self.gamma_scale = 1
 
         self.horiz_len = horiz_len
         self.num_downstream = num_downstream
+        self.num_upstream = num_upstream
 
         inputs = np.array([0.0])
         disturbances = np.array([0.0])
@@ -28,54 +29,64 @@ class grid_aggregator:
         # Model matrices
         # print(self.num_downstream)
         # lkj
-        self.A = np.zeros((self.num_downstream, self.num_downstream))
-        self.Bu = np.zeros((self.num_downstream, self.num_downstream))
-        self.Bv = np.zeros((self.num_downstream, self.num_downstream))
-        self.Bd = np.zeros((self.num_downstream, 1)) 
+        self.A = np.zeros((1, 1))
+        self.Bu = np.zeros((1, self.num_downstream - 1))
+        self.Bv = np.zeros((1, self.num_upstream))
+        self.Bd = np.zeros((1, 1)) 
 
-        self.Bu_mean_inputs = np.zeros((self.num_downstream, self.num_downstream))
+        self.Bu_mean_inputs = np.zeros((1, self.num_downstream - 1))
         self.Bd_mean_inputs = np.array([0.0])
-        self.Cy_mean_outputs = np.zeros((self.num_downstream + 1, 1))
+        self.Cy_mean_outputs = np.zeros((self.num_downstream, 1))
         self.Cz_mean_outputs = np.zeros((self.num_downstream, 1))
 
         self.Cy = np.array(
-            [[0.0]*self.num_downstream for i in range(self.num_downstream + 1)]
+            [[0.0] for i in range(self.num_downstream)]
         )
+        print(self.Cy)
+        # lkj
         self.Dyu = np.array(
             np.vstack(
                 [
-                    -1.0*np.eye(self.num_downstream), # total p_ref power for tracking p_ref from super grid agg
-                    -1.0*np.eye(self.num_downstream) # ref to send to buildings
+                    [1.0]*2, # total p_ref power for tracking p_ref from super grid agg
+                    -1.0*np.eye(2) # ref to send to buildings
                 ]
             )
         )
         print(np.shape(self.Dyu))
-        print(self.Dyu)
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!', self.Dyu)
+        print('num dwonstream: ', self.num_downstream)
+        # lkj
+
+        # self.Dyv = np.array(
+        #     np.vstack(
+        #         [
+        #             [1.0], # power ref from super grid agg
+        #             [np.eye(self.num_downstream)] # building powers
+        #         ]
+        #     )
+        # )
         self.Dyv = np.array(
-            np.vstack(
-                [
-                    [1.0], # power ref from super grid agg
-                    [np.eye(self.num_downstream)] # building powers
-                ]
-            )
+            np.eye(self.num_upstream)
         )
         print(np.shape(self.Dyv))
         print(self.Dyv)
         # lkj
-        self.Dyd = np.zeros((self.num_downstream+1, 1))
+        self.Dyd = np.zeros((self.num_downstream, 1))
+        # print(self.Dyd)
+        # lkj
 
-        self.Cz = np.zeros((self.num_downstream, self.num_downstream))
-        self.Dzu = np.eye(self.num_downstream) # total p_ref power to send to super grid agg
-        self.Dzv = np.zeros((self.num_downstream, self.num_downstream))
+        self.Cz = np.zeros((self.num_downstream, 1))
+        self.Dzu = np.eye(self.num_downstream, 2) # total p_ref power to send to super grid agg
+        self.Dzv = np.zeros((self.num_downstream, self.num_upstream))
         self.Dzd = np.zeros((self.num_downstream, 1))
 
-        self.Cy_lin = np.zeros((self.num_downstream+1, 1))
+        self.Cy_lin = np.zeros((self.num_downstream, 1))
         self.Cz_lin = np.zeros((self.num_downstream, 1))
 
-        self.Dyu_lin = np.zeros((self.num_downstream+1, 1))
+        self.Dyu_lin = np.zeros((self.num_downstream, 1))
         self.Dzu_lin = np.zeros((self.num_downstream, 1))
 
-        self.Dyd_lin = np.zeros((self.num_downstream+1, 1))
+        self.Dyd_lin = np.zeros((self.num_downstream, 1))
         self.Dzd_lin = np.zeros((self.num_downstream, 1))
 
     def process_Q(self, Q):
@@ -127,7 +138,7 @@ class grid_aggregator:
 
     def add_var_group(self, optProb):
         optProb.addVarGroup(
-            'bldg_Prefs', self.horiz_len*self.num_upstream, type='c',
+            'bldg_Prefs', self.horiz_len*(self.num_downstream - 1), type='c',
             lower=0.0, upper=500.0, value=50.0
         )
         self.numDVs = self.num_downstream

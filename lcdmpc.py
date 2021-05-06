@@ -338,6 +338,8 @@ class subsystem():
         self.Cy = control_model.Cy
         self.Cz = control_model.Cz
         self.Dyu = control_model.Dyu
+        # if self.idn == 1:
+        #     print('##############: ', self.Dyu)
         self.Dyv = control_model.Dyv
         self.Dyd = control_model.Dyd
         self.Dzu = control_model.Dzu
@@ -407,6 +409,7 @@ class subsystem():
         # print('self.E shape: ', np.shape(self.E))
         # print('self.T shape: ', np.shape(self.T))
         # print('uopt: ', self.uOpt)
+        # print('idn: ', self.idn)
         # print('obj1: ', dot(dot(tp(self.uOpt), self.H), self.uOpt))
         # print('obj2: ', 2*dot(tp(self.uOpt), self.F))
         funcs['obj'] = (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
@@ -624,8 +627,9 @@ class subsystem():
         #     print('self.uConv: ', self.uConv)
         # if self.idn == 0:
         print('subsys idn: ', self.idn)
+        print(' self.Z: ', self.Z)
         print(' self.V: ', self.V)
-        print('gamma: ', self.gamma)
+        print(' gamma: ', self.gamma)
 
         return self.gamma
 
@@ -655,6 +659,7 @@ class subsystem():
             else:
                 # print('########## ', obj.subsystems[upstream].control_model.Z_idn)
                 # print('########## ', np.where(np.array(obj.subsystems[upstream].downstream) == self.idn)[0][0])
+                print("=========================")
                 print('self.idn: ', self.idn)
                 # print('upstream: ', upstream)
                 # self.subsystems[up].downstream.append(down)
@@ -662,13 +667,18 @@ class subsystem():
                 idx = np.where(np.array(obj.subsystems[upstream].downstream) == self.idn)[0][0]
                 # idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
                 idx_range = len(obj.subsystems[upstream].downstream)
-                # print('i: ', i)
-                # print('num_upstream: ', self.control_model.num_upstream)
-                # print('upstream: ', upstream)
-                # print('idx: ', idx)
-                # print('idx_range: ', idx_range)
-                # print('values: ', obj.subsystems[upstream].Z[idx::idx_range])
+                print('i: ', i)
+                print('num_upstream: ', self.control_model.num_upstream)
+                print('upstream: ', upstream)
+                print('idx: ', idx)
+                print('upstreams downstream: ', obj.subsystems[upstream].downstream)
+                print('idx_range: ', idx_range)
+                print('values: ', obj.subsystems[upstream].Z)
+                print('subvalues: ', obj.subsystems[upstream].Z[idx::idx_range])
+                # lkj
                 self.V[i::self.control_model.num_upstream] = obj.subsystems[upstream].Z[idx::idx_range]
+                print('self.V: ', self.V)
+                print("=========================")
                 # self.V = np.array([[val] for \
                 #     val in obj.subsystems[upstream].Z])
 
@@ -855,16 +865,21 @@ class subsystem():
                - np.tile(self.control_model.Dyu_lin, (self.horiz_len, 1)) \
                - np.tile(self.control_model.Dyd_lin, (self.horiz_len, 1))
 
+        # if self.idn == 0:
+        #     print('###################### before self.Z: ', self.Z)
         self.Z = self.Z \
                 - np.tile(self.control_model.Cz_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
                 - np.tile(self.control_model.Dzu_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1]) \
                 - np.tile(self.control_model.Dzd_lin, self.horiz_len).reshape(np.shape(self.Z)[0], np.shape(self.Z)[1])
+        # if self.idn == 0:
+        #     print('###################### after self.Z: ', self.Z)
         # print('Z after: ', self.Z)
         # print('size of self.Z: ', np.shape(self.Z))
 
     def sys_matrices(self):       
         # self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
         #           for i in range(1, self.horiz_len + 1)])
+        # print('idn: ', self.idn)
         self.Fy = np.array([dot(self.Cy, matpower(self.A, i)) \
                   for i in range(0, self.horiz_len)])
         self.Fy = np.reshape(
@@ -910,6 +925,11 @@ class subsystem():
         # print('shape Cy: ', np.shape(self.Cy))
         # print('shape Bu: ', np.shape(self.Bu))
         # print('shape Mytmp0: ', np.shape(Mytmp0))
+        # print('self.idn: ', self.idn)
+        # print('Cy: ', self.Cy)
+        # print('Bu: ', self.Bu)
+        # print('Mytmp0: ', Mytmp0)
+        # print('idn:', self.idn)
         Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))
         # print('shape Mytmp: ', np.shape(Mytmp))
         for i in range(self.horiz_len - 1):
@@ -993,10 +1013,14 @@ class subsystem():
         Nytmp0 = self.Dyv
         Nytmp0Shape = np.shape(Nytmp0)
         Nytmp = np.hstack((dot(self.Cy, self.Bv), Nytmp0))
+        # print('Nytmp: ', Nytmp)
+        # print('Nytmp0: ', Nytmp0)
         for i in range(self.horiz_len - 1):
             Nytmp0 = np.hstack((Nytmp0, np.zeros(Nytmp0Shape)))
         for i in range(self.horiz_len - 2):
             Nytmp = np.hstack((Nytmp, np.zeros(Nytmp0Shape)))
+        # print('Nytmp: ', Nytmp)
+        # print('Nytmp0: ', Nytmp0)
         Nytmp = np.vstack((Nytmp0, Nytmp))
         
         for i in range(1, self.horiz_len - 1):
