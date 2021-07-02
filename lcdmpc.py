@@ -105,9 +105,12 @@ class LCDMPC():
         """
         Exchange information between subsystems.
         """
+        Psi = []
         for subsys in self.subsystems:
             subsys.update_V(self)
-            subsys.update_Psi(self)
+            Psi.append(subsys.update_Psi(self))
+        
+        return Psi
 
     def optimize_all(self):
         """
@@ -626,10 +629,10 @@ class subsystem():
         #     print('self.My: ', self.My)
         #     print('self.uConv: ', self.uConv)
         # if self.idn == 0:
-        print('subsys idn: ', self.idn)
-        print(' self.Z: ', self.Z)
-        print(' self.V: ', self.V)
-        print(' gamma: ', self.gamma)
+        # print('subsys idn: ', self.idn)
+        # print(' self.Z: ', self.Z)
+        # print(' self.V: ', self.V)
+        # print(' gamma: ', self.gamma)
 
         return self.gamma
 
@@ -659,26 +662,26 @@ class subsystem():
             else:
                 # print('########## ', obj.subsystems[upstream].control_model.Z_idn)
                 # print('########## ', np.where(np.array(obj.subsystems[upstream].downstream) == self.idn)[0][0])
-                print("=========================")
-                print('self.idn: ', self.idn)
+                # print("=========================")
+                # print('self.idn: ', self.idn)
                 # print('upstream: ', upstream)
                 # self.subsystems[up].downstream.append(down)
                 # idx = np.where(np.array(obj.subsystems[upstream].control_model.Z_idn) == self.idn)[0][0]
                 idx = np.where(np.array(obj.subsystems[upstream].downstream) == self.idn)[0][0]
                 # idx_range = len(obj.subsystems[upstream].control_model.Z_idn)
                 idx_range = len(obj.subsystems[upstream].downstream)
-                print('i: ', i)
-                print('num_upstream: ', self.control_model.num_upstream)
-                print('upstream: ', upstream)
-                print('idx: ', idx)
-                print('upstreams downstream: ', obj.subsystems[upstream].downstream)
-                print('idx_range: ', idx_range)
-                print('values: ', obj.subsystems[upstream].Z)
-                print('subvalues: ', obj.subsystems[upstream].Z[idx::idx_range])
+                # print('i: ', i)
+                # print('num_upstream: ', self.control_model.num_upstream)
+                # print('upstream: ', upstream)
+                # print('idx: ', idx)
+                # print('upstreams downstream: ', obj.subsystems[upstream].downstream)
+                # print('idx_range: ', idx_range)
+                # print('values: ', obj.subsystems[upstream].Z)
+                # print('subvalues: ', obj.subsystems[upstream].Z[idx::idx_range])
                 # lkj
                 self.V[i::self.control_model.num_upstream] = obj.subsystems[upstream].Z[idx::idx_range]
-                print('self.V: ', self.V)
-                print("=========================")
+                # print('self.V: ', self.V)
+                # print("=========================")
                 # self.V = np.array([[val] for \
                 #     val in obj.subsystems[upstream].Z])
 
@@ -707,6 +710,8 @@ class subsystem():
         # if self.idn == 0:
         # print('subsys idn: ', self.idn)
         # print('*** 3, Psi: ', self.Psi)
+
+        return self.Psi
 
     def update_x(self):
         # TODO: add in self.d to class
@@ -928,6 +933,7 @@ class subsystem():
         # print('self.idn: ', self.idn)
         # print('Cy: ', self.Cy)
         # print('Bu: ', self.Bu)
+        # print('dot(Cy, Bu): ', dot(self.Cy, self.Bu))
         # print('Mytmp0: ', Mytmp0)
         # print('idn:', self.idn)
         Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))

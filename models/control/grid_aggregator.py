@@ -49,8 +49,8 @@ class grid_aggregator:
                 ]
             )
         )
-        print(np.shape(self.Dyu))
-        print(self.Dyu)
+        # print(np.shape(self.Dyu))
+        # print(self.Dyu)
         # lkj
         self.Dyv = np.array(
             np.vstack(
@@ -60,8 +60,8 @@ class grid_aggregator:
                 ]
             )
         )
-        print(np.shape(self.Dyv))
-        print(self.Dyv)
+        # print(np.shape(self.Dyv))
+        # print(self.Dyv)
         # lkj
         self.Dyd = np.zeros((self.num_downstream+1, 1))
 
@@ -82,60 +82,36 @@ class grid_aggregator:
     def process_Q(self, Q):
         # print(Q)
         # lkj
-        Q = np.zeros(np.shape(Q))
-        Q[0, 0] = 1.0
-        Q[1, 1] = 5.0*1e-7
-        Q[2, 2] = 5.0*1e-7
+        Q = np.eye(np.shape(Q)[0]) * 1e-7 # weight for individual prefs
+        for i in np.arange(0, len(Q), self.num_downstream + 1):
+            # Q[i] = np.zeros(len(Q))
+            Q[i, i] = 1.0*1e-2 # -2, 0 weight for bulk ref
+        # print(Q)
+        # lkj
+
+        # Q[0, 0] = 1.0*1e-2
+        # Q[1, 1] = 1.0*1e-7
+        # Q[2, 2] = 1.0*1e-7
+        # Q[3, 3] = 1.0*1e-2
+        # Q[4, 4] = 1.0*1e-7
+        # Q[5, 5] = 1.0*1e-7
+        # Q[6, 6] = 1.0*1e-2
+        # Q[7, 7] = 1.0*1e-7
+        # Q[8, 8] = 1.0*1e-7
+        # Q[6, 6] = 1.0*1e-1
+        # Q[12, 12] = 1.0*1e-1
+        # Q[18, 18] = 1.0*1e-1
+        # Q[24, 24] = 1.0*1e-1
+        # Q[30, 30] = 1.0*1e-1
+        # Q[1, 1] = 5.0*1e-7
+        # Q[2, 2] = 5.0*1e-7
         # Q[3, 3] = 5.0*1e-7
         # Q[4, 4] = 5.0*1e-7
         # Q[5, 5] = 5.0*1e-7
         # Q[6, 6] = 5.0*1e-7
         # Q[7, 7] = 5.0*1e-7
-        # Q[8, 8] = 5.0*1e-7
-        # Q[9, 9] = 5.0*1e-7
-        # Q[10, 10] = 5.0*1e-7
-        # Q[11, 11] = 5.0*1e-7
-        # Q[12, 12] = 5.0*1e-7
-        # Q[13, 13] = 5.0*1e-7
-        # Q[14, 14] = 5.0*1e-7
-        # Q[15, 15] = 5.0*1e-7
-        # Q[16, 16] = 5.0*1e-7
-        # Q[17, 17] = 5.0*1e-7
-        # Q[18, 18] = 5.0*1e-7
-        # Q[19, 19] = 5.0*1e-7
-        # Q[20, 20] = 5.0*1e-7
-        # Q[6, 6] = 1.0
-        # Q[7, 7] = 5.0*1e-7
-        # Q[8, 8] = 5.0*1e-7
-        # Q[9, 9] = 5.0*1e-7
-        # Q[10, 10] = 5.0*1e-7
-        # Q[11, 11] = 5.0*1e-7
-        # Q[12, 12] = 1.0
-        # Q[13, 13] = 5.0*1e-7
-        # Q[14, 14] = 5.0*1e-7
-        # Q[15, 15] = 5.0*1e-7
-        # Q[16, 16] = 5.0*1e-7
-        # Q[17, 17] = 5.0*1e-7
-        # Q[18, 18] = 1.0
-        # Q[19, 19] = 5.0*1e-7
-        # Q[20, 20] = 5.0*1e-7
-        # Q[21, 21] = 5.0*1e-7
-        # Q[22, 22] = 5.0*1e-7
-        # Q[23, 23] = 5.0*1e-7
-        # print(Q)
-        # lkj
-        # for i in range(self.num_downstream):
-        #     for j in np.arange(i+1, len(Q), (self.num_downstream + 1)):
-        #         Q[j] = np.zeros(len(Q))
-        # for i in np.arange(1, len(Q), 4):
-        #     Q[i] = np.zeros(len(Q))
-        # for i in np.arange(2, len(Q), 4):
-        #     Q[i] = np.zeros(len(Q))
-        # for i in np.arange(3, len(Q), 4):
-        #     Q[i] = np.zeros(len(Q))
-        # print('#########: ', Q)
-        # lkj
-        return Q*1.0e2
+
+        return Q*1.0e4 #4
 
     def process_S(self, S):
         S = S
@@ -162,7 +138,7 @@ class grid_aggregator:
     def add_var_group(self, optProb):
         optProb.addVarGroup(
             'bldg_Prefs', self.horiz_len*self.num_upstream, type='c',
-            lower=0.0, upper=500.0, value=50.0
+            lower=0.0, upper=200.0, value=50.0
         )
         self.numDVs = self.num_downstream
         return optProb

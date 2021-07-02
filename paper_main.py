@@ -14,7 +14,6 @@ import lcdmpc as opt
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import pickle
 
 from models.control.bldg_grid_agg_data_driven_mdl_large import bldg_grid_agg_data_driven_mdl_large
 from models.control.bldg_grid_agg_data_driven_mdl_med import bldg_grid_agg_data_driven_mdl_med
@@ -23,17 +22,16 @@ from models.simulation.bldg_sim_mdl_large import bldg_sim_mdl_large
 from models.simulation.bldg_sim_mdl_med import bldg_sim_mdl_med
 from models.simulation.bldg_sim_mdl_small import bldg_sim_mdl_small
 from models.control.grid_aggregator import grid_aggregator
-from models.control.sub_grid_aggregator import sub_grid_aggregator
 
-start_time = 11*60    # Start time in minutes; 700
+start_time = 9*60    # Start time in minutes; 700
 dt = 1              # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 20*1      # Length of simulation in minutes
-horiz_len = 2   # Prediction horizion length
-commuincation_iterations = 5 # number of communications between subsystems
-Beta = 0.8      # Convex combination parameter for control action
+time = 30*1      # Length of simulation in minutes
+horiz_len = 3   # Prediction horizion length
+commuincation_iterations = 3 # number of communications between subsystems
+Beta = 0.1      # Convex combination parameter for control action
 
 time_array = np.arange(start_time, (start_time + time), dt)
 
@@ -41,26 +39,21 @@ time_array = np.arange(start_time, (start_time + time), dt)
 bldg1_small_disturb_file = 'input/ROM_simulation_data_small_office.csv'
 bldg1_disturb_file = 'input/ROM_simulation_data_large_office_denver.csv'
 
-num_grid_aggregators = 1
-num_sub_grid_aggregators = 2
-grid_agg_num_downstream = [2]
-sub_grid_agg_num_upstream = [4, 3]
-sub_grid_agg_num_downstream = [4, 3]
-num_buildings_large = 5
-num_buildings_medium = 0
+num_buildings_large = 2
+num_buildings_medium = 1
 num_buildings_small = 0
 num_buildings_total = num_buildings_large + num_buildings_medium + num_buildings_small
 
 ms_dot_large = 8.0
 T_sa_large = 12.8
 T_oa_large = 28.
-T_z_large = 22.0 # 22.794
+T_z_large = 22.5
 T_e_large = 20.
 
 ms_dot_medium = 4.0
 T_sa_medium = 12.8
 T_oa_medium = 28.95
-T_z_medium = 22.5 # 23.8812
+T_z_medium = 23.8812
 T_e_medium = 20.
 
 ms_dot_small = 1.0
@@ -83,10 +76,8 @@ disturb2 = [6.0, 2.0, 2.0]
 outputs1 = [1]
 outputs2 = [1]
 
-sub_grid_agg_ref = [[0.0], [0.0], [0.0], [0.0]]
-sub_grid_agg_ref_2 = [[0.0], [0.0], [0.0]]
-refs_large = [[-1.794], [20.], [0.0]]
-refs_medium = [[-2.2812], [20.], [0.0]]
+refs_large = [[-1.0], [20.], [0.0]]
+refs_medium = [[-1.8812], [20.], [0.0]]
 refs_small = [[0], [20.], [0.0]]
 
 disturbance_data = pd.read_csv(bldg1_disturb_file)
@@ -94,7 +85,17 @@ Toa_horiz = disturbance_data.iloc[start_time: start_time + int(time/dt) + horiz_
 Toa_horiz_normed = Toa_horiz/Toa_horiz[0]
 
 np.random.seed(1)
-grid_agg_ref = np.random.normal(6*num_buildings_small + 20.0*num_buildings_medium + 35*num_buildings_large, 5.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
+grid_agg_ref = np.random.normal(6*num_buildings_small + 30*num_buildings_medium + 40*num_buildings_large, 5.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
+
+refs_grid_total = pd.DataFrame()
+for i in range(int(time/dt) + horiz_len):
+    refs_grid_total = refs_grid_total.append(
+        {
+            'time': start_time + i,
+            'grid_ref': [[grid_agg_ref[i]]] + [[0.] for i in range(num_buildings_total)]
+        },
+        ignore_index=True
+    )
 
 bldg_optoptions = {
     'Major feasibility tolerance': 1e1,
@@ -109,18 +110,15 @@ grid_optoptions = {
     'Proximal iterations limit': 1000,
 }
 
-grid_agg_cont_models = []
-grid_agg_truth_models = []
-sub_grid_agg_cont_models = []
-sub_grid_agg_truth_models = []
+num_downstream1 = num_buildings_total
+num_upstream1 = 0
 
 building_control_models = []
 building_truth_models = []
 
-Qint_scale = np.random.normal(1.15, 0.2, num_buildings_total).tolist() # 1.3
-Qsol_scale = np.random.normal(1.1, 0.2, num_buildings_total).tolist() # 1.5
-# Qint_scale = [1.0] * num_buildings_total
-# Qsol_scale = [1.0] * num_buildings_total
+Qint_scale = np.random.normal(1.3, 0.2, num_buildings_total).tolist()
+Qsol_scale = np.random.normal(1.5, 0.5, num_buildings_total).tolist()
+# Qsol_scale = np.ones(np.shape(Qsol_scale)).tolist()
 
 Qint_offset = [0.0]*num_buildings_total
 Qsol_offset = [0.0]*num_buildings_total
@@ -129,31 +127,6 @@ Qint_std = [1.0]*num_buildings_total
 Qsol_std = [1.0]*num_buildings_total
 
 energy_red_weight = [0.0]*num_buildings_total
-
-refs_grid_total = []
-for i in range(num_grid_aggregators):
-    grid_agg_cont_models.append(grid_aggregator(horiz_len, grid_agg_num_downstream[i]))
-    grid_agg_truth_models.append(grid_aggregator(horiz_len, grid_agg_num_downstream[i]))
-
-    refs_grid = pd.DataFrame()
-    for j in range(int(time/dt) + horiz_len):
-        refs_grid = refs_grid.append(
-            {
-                'time': start_time + j,
-                'grid_ref': [[grid_agg_ref[j]]] + [[0.] for k in range(grid_agg_num_downstream[i])]
-            },
-            ignore_index=True
-        )
-    
-    refs_grid_total.append(refs_grid)
-
-for i in range(num_sub_grid_aggregators):
-    sub_grid_agg_cont_models.append(
-        sub_grid_aggregator(horiz_len, sub_grid_agg_num_downstream[i], sub_grid_agg_num_upstream[i])
-    )
-    sub_grid_agg_truth_models.append(
-        sub_grid_aggregator(horiz_len, sub_grid_agg_num_downstream[i], sub_grid_agg_num_upstream[i])
-    )
 
 for i in range(num_buildings_large):
     building_control_models.append(
@@ -197,124 +170,44 @@ for i in range(num_buildings_small):
         Qint_offset[i], Qsol_offset[i])
     )
 
+grid_agg1_cont = grid_aggregator(horiz_len, num_downstream1)
+grid_agg1_truth = grid_aggregator(horiz_len, num_downstream1)
 
-for i in range(num_grid_aggregators):
-    print('i grid_agg: ', i)
-    tmp.build_subsystem(i, grid_agg_cont_models[i], grid_agg_truth_models[i], 
-        inputs, outputs1, horiz_len, Beta, bldg1_disturb_file, refs_total=refs_grid_total[i],
-        optOptions=grid_optoptions)
-
-# for i in range(num_sub_grid_aggregators):
-#     print('i sub_grid_agg: ', i + num_grid_aggregators)
-#     tmp.build_subsystem(i + num_grid_aggregators, sub_grid_agg_cont_models[i], sub_grid_agg_truth_models[i], 
-#         inputs, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=sub_grid_agg_ref,
-#         optOptions=grid_optoptions)
-
-tmp.build_subsystem(0 + num_grid_aggregators, sub_grid_agg_cont_models[0], sub_grid_agg_truth_models[0], 
-        inputs, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=sub_grid_agg_ref,
-        optOptions=grid_optoptions)
-
-tmp.build_subsystem(1 + num_grid_aggregators, sub_grid_agg_cont_models[1], sub_grid_agg_truth_models[1], 
-        inputs, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=sub_grid_agg_ref_2,
-        optOptions=grid_optoptions)
+tmp.build_subsystem(0, grid_agg1_cont, grid_agg1_truth, 
+    inputs, outputs1, horiz_len, Beta, bldg1_disturb_file, refs_total=refs_grid_total,
+    optOptions=grid_optoptions)
 
 for i in range(num_buildings_large):
-    print('i large: ', i + num_grid_aggregators + num_sub_grid_aggregators)
-    tmp.build_subsystem(i + num_grid_aggregators + num_sub_grid_aggregators, building_control_models[i], building_truth_models[i],
+    print('i large: ', i + 1)
+    tmp.build_subsystem(i + 1, building_control_models[i], building_truth_models[i],
     inputs_large, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs_large,
     optOptions=bldg_optoptions)
 
 for i in range(num_buildings_medium):
-    print('i medium: ', i + num_grid_aggregators + num_sub_grid_aggregators + num_buildings_large)
-    ind = i + num_grid_aggregators + num_sub_grid_aggregators + num_buildings_large
-    tmp.build_subsystem(ind, building_control_models[i + num_buildings_large], building_truth_models[i + num_buildings_large],
+    print('i medium: ', i + 1 + num_buildings_large)
+    ind = i + 1 + num_buildings_large
+    tmp.build_subsystem(ind, building_control_models[ind-1], building_truth_models[ind-1],
     inputs_medium, outputs1, horiz_len, Beta, bldg1_disturb_file, refs=refs_medium,
     optOptions=bldg_optoptions)
 
 for i in range(num_buildings_small):
-    print('i small: ', i + num_grid_aggregators + num_sub_grid_aggregators + num_buildings_large + num_buildings_medium)
-    ind = i + num_grid_aggregators + num_sub_grid_aggregators + num_buildings_large + num_buildings_medium
-    tmp.build_subsystem(ind, building_control_models[i + num_buildings_large + num_buildings_medium], building_truth_models[i + num_buildings_large + num_buildings_medium],
+    print('i small: ', i + 1 + num_buildings_large + num_buildings_medium)
+    ind = i + 1 + num_buildings_large + num_buildings_medium
+    tmp.build_subsystem(ind, building_control_models[ind-1], building_truth_models[ind-1],
     inputs_small, outputs1, horiz_len, Beta, bldg1_small_disturb_file, refs=refs_small,
     optOptions=bldg_optoptions)
-# lkj
-# connections = [[0, i+1] for i in range(num_buildings_total)] + \
-#               [[i+1, 0] for i in range(num_buildings_total)]
 
-# connections = [
-#     [0, 2],
-#     [2, 0],
-#     [0, 3],
-#     [3, 0],
-#     [1, 4],
-#     [4, 1],
-#     [1, 5],
-#     [5, 1]
-# ]
-
-# connections = [
-#     [0, 1],
-#     [1, 0],
-#     [0, 2],
-#     [2, 0],
-#     [1, 3],
-#     [3, 1],
-#     [1, 4],
-#     [4, 1],
-#     [2, 5],
-#     [5, 2],
-#     [2, 6],
-#     [6, 2]
-# ]
-
-# connections = [
-#     [0, 1],
-#     [1, 0],
-#     [0, 2],
-#     [2, 0],
-#     [1, 3],
-#     [3, 1],
-#     [1, 4],
-#     [4, 1],
-#     [1, 5],
-#     [5, 1],
-#     [2, 6],
-#     [6, 2],
-#     [2, 7],
-#     [7, 2],
-#     [2, 8],
-#     [8, 2]
-# ]
-
-connections = [
-    [0, 1],
-    [1, 0],
-    [0, 2],
-    [2, 0],
-    [1, 3],
-    [3, 1],
-    [1, 4],
-    [4, 1],
-    [1, 5],
-    [5, 1],
-    [2, 6],
-    [6, 2],
-    [2, 7],
-    [7, 2],]
-#     [2, 8],
-#     [8, 2],
-# ]
+connections = [[0, i+1] for i in range(num_buildings_total)] + \
+              [[i+1, 0] for i in range(num_buildings_total)]
 
 # connections = None
 tmp.build_interconnections(interconnections=connections)
 
 outputs_all = []
 controls_all = []
-Psi_comm = []
 
 for i in range(int(time/dt)):
-    # if i == 9:
-    #     lkj
+
     print('+++++++++++++++++++++++++++++')
     print('time iteration: ', i)
     print('+++++++++++++++++++++++++++++')
@@ -323,10 +216,9 @@ for i in range(int(time/dt)):
 
     tmp.relinearize_subsystem_models()
 
-    Psi_comm_iter = []
+    gamma_comm = []
     for j in range(commuincation_iterations):
         # Communication step
-        print('Communication iteration: ', j)
         tmp.communicate()
         # Optimize all subsystems (individual objective functions)
         tmp.optimize_all()
@@ -335,11 +227,11 @@ for i in range(int(time/dt)):
         # Update Z's for downstream subsystems
         tmp.update_downstream_outputs()
 
-        Psi_comm_iter.append(tmp.calculate_sensitivities())
+        tmp.calculate_sensitivities()
 
         # print('==============================')
+        print('communication iteration: ', j)
         # print('==============================')
-    Psi_comm.append(Psi_comm_iter)
     # Update state equations for subsystems
     tmp.update_states()
     # Update outputs of subsystems
@@ -360,42 +252,37 @@ for i in range(int(time/dt)):
 
 np.set_printoptions(suppress=True)
 
-print(Psi_comm)
-# lkj
-# print(outputs_all)
-
 plot_temps = []
 for i in range(num_buildings_total):
-    plot_temps.append([val[i+num_grid_aggregators+num_sub_grid_aggregators:][0][0][0][0] for val in outputs_all])
+    plot_temps.append([val[i+1:][0][0][0][0] for val in outputs_all])
 
 plot_bldg_powers = []
 for i in range(num_buildings_total):
-    plot_bldg_powers.append([val[i+num_grid_aggregators+num_sub_grid_aggregators:][0][1][0][0] for val in outputs_all])
+    plot_bldg_powers.append([val[i+1:][0][1][0][0] for val in outputs_all])
 
-plot_grid_agg_powers = []
-for i in range(num_grid_aggregators):
-    plot_grid_agg_powers.append([val[i:][0] for val in outputs_all])
+# print(outputs_all)
+# print('-------------')
+# print(outputs_all[0][0])
+# print(outputs_all[0][0][0])
 
-plot_subgrid_agg_powers = []
-for i in range(num_sub_grid_aggregators):
-    plot_subgrid_agg_powers.append([val[i+num_grid_aggregators:][0] for val in outputs_all])
+grid_prefs_ind = []
+for i in range(num_buildings_total):
+    grid_prefs_ind.append([val[0][i][0] for val in outputs_all])
+
+# print(grid_prefs_ind)
+# lkj
 
 total_power = []
 grid_prefs_total = []
+
 for i in range(len(outputs_all)):
-    sum_of_powers = np.sum([val[1] for val in outputs_all[i][num_grid_aggregators+num_sub_grid_aggregators:]])
-    # sum_of_grid_prefs = np.sum(outputs_all[i][0][:])
-    # print('#######: ', outputs_all[i][:num_grid_aggregators][:])
-    sum_of_grid_prefs = np.sum(outputs_all[i][:num_grid_aggregators][:])
-    # print(sum_of_grid_prefs)
+    sum_of_powers = np.sum([val[1] for val in outputs_all[i][1:]])
+    sum_of_grid_prefs = np.sum(outputs_all[i][0][:])
     total_power.append(sum_of_powers)
     grid_prefs_total.append(sum_of_grid_prefs)
 
-with open('results.p', 'wb') as handle:
-    pickle.dump([tmp, plot_temps, plot_bldg_powers, total_power, grid_prefs_total, disturbance_data], handle, protocol=pickle.HIGHEST_PROTOCOL)
-
 T_lower = 20.0
-T_upper = 23.1
+T_upper = 23.3
 P_lower = 0.0
 P_upper = 100.0
 
@@ -424,22 +311,36 @@ ax2.plot(
 ax2.plot(
     time_array[dt_num_offset:], T_upper*np.ones(len(time_array))[dt_num_offset:], '--k'
 )
-# ax2.legend(bldg_temp_legend + ['Outdoor Air Temp'])
+ax2.legend(bldg_temp_legend + ['Outdoor Air Temp'])
 xticks = ax2.get_xticks()
 ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
 ax2.set_title('Building Temperatures')
 ax2.set_ylabel('Temperature [C]')
 ax2.set_xlabel('Time')
 
+colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 ax2 = axes[1, 0]
 bldg_power_legend = []
 for i in range(num_buildings_total):
     ax2.plot(
         time_array[dt_num_offset:],
-        np.array(plot_bldg_powers[i]).flatten()[dt_num_offset:]
+        np.array(plot_bldg_powers[i]).flatten()[dt_num_offset:],
+        color=colors[i]
     )
     bldg_power_legend.append('Bldg ' + str(i))
-# ax2.legend(bldg_power_legend)
+for i in range(num_buildings_total):
+    ax2.plot(
+        time_array[dt_num_offset:],
+        np.array(grid_prefs_ind[i]).flatten()[dt_num_offset:],
+        '--',
+        color=colors[i]
+    )
+    bldg_power_legend.append('Pref ' + str(i))
+# ax2.plot(time_array[dt_num_offset:], pref1[dt_num_offset:], '--', color='tab:blue')
+# bldg_power_legend.append('pref1')
+# ax2.plot(time_array[dt_num_offset:], pref2[dt_num_offset:], '--', color='tab:orange')
+# bldg_power_legend.append('pref2')
+ax2.legend(bldg_power_legend)
 xticks = ax2.get_xticks()
 ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
 ax2.set_title('Building Powers')
@@ -457,7 +358,7 @@ ax4.plot(
     np.array(grid_prefs_total).flatten()[dt_num_offset:],
     '-r'
 )
-ax4.plot(time_array[dt_num_offset:], grid_agg_ref[dt_num_offset-1:-horiz_len-1]*num_grid_aggregators, '-.k')
+ax4.plot(time_array[dt_num_offset:], grid_agg_ref[dt_num_offset-1:-horiz_len-1], '-.k')
 ax4.legend(['Bldg Power', 'Power Ref Stpts', 'Grid Power Ref'])
 xticks = ax4.get_xticks()
 ax4.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
@@ -481,28 +382,8 @@ ax4.set_title('Power Error')
 ax4.set_ylabel('Error [%]')
 ax4.set_xlabel('Time')
 
-# print(plot_grid_agg_powers[0])
-# print(plot_grid_agg_powers[0][dt_num_offset:])
-# print([plot_grid_agg_powers[0][dt_num_offset:][i][0] for i in range(len(plot_grid_agg_powers[0][dt_num_offset:]))])
-
-plt.figure()
-plt.plot(time_array[dt_num_offset:], [plot_grid_agg_powers[0][dt_num_offset:][i][0] for i in range(len(plot_grid_agg_powers[0][dt_num_offset:]))], label='sub grid agg 1')
-plt.plot(time_array[dt_num_offset:], [plot_grid_agg_powers[0][dt_num_offset:][i][1] for i in range(len(plot_grid_agg_powers[0][dt_num_offset:]))], label='sub grid agg 2')
-plt.legend()
-plt.title('Signal from Grid Agg')
-
-print(plot_subgrid_agg_powers[0])
-
-plt.figure()
-plt.plot(time_array[dt_num_offset:], [plot_subgrid_agg_powers[0][dt_num_offset:][i][0] for i in range(len(plot_subgrid_agg_powers[0][dt_num_offset:]))], label='bldg 1')
-plt.plot(time_array[dt_num_offset:], [plot_subgrid_agg_powers[0][dt_num_offset:][i][1] for i in range(len(plot_subgrid_agg_powers[0][dt_num_offset:]))], label='bldg 2')
-plt.plot(time_array[dt_num_offset:], [plot_subgrid_agg_powers[0][dt_num_offset:][i][2] for i in range(len(plot_subgrid_agg_powers[0][dt_num_offset:]))], label='bldg 3')
-plt.plot(time_array[dt_num_offset:], [plot_subgrid_agg_powers[1][dt_num_offset:][i][0] for i in range(len(plot_subgrid_agg_powers[0][dt_num_offset:]))], label='bldg 4')
-plt.plot(time_array[dt_num_offset:], [plot_subgrid_agg_powers[1][dt_num_offset:][i][1] for i in range(len(plot_subgrid_agg_powers[0][dt_num_offset:]))], label='bldg 5')
-# plt.plot(time_array[dt_num_offset:], [plot_subgrid_agg_powers[1][dt_num_offset:][i][2] for i in range(len(plot_subgrid_agg_powers[0][dt_num_offset:]))], label='bldg 6')
-plt.legend()
-plt.title('Signal from Sub Grid Aggs')
+plt.savefig('results.png', bbox_inches='tight')
 
 plt.show()
 
-plt.savefig('results.png', bbox_inches='tight')
+

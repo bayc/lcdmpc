@@ -8,7 +8,7 @@ class bldg_grid_agg_data_driven_mdl_large:
     def __init__(self, ms_dot, T_sa, T_z, horiz_len, energy_red_weight,
     Qint_std, Qsol_std, Qint_scale, Qsol_scale, Qint_offset, Qsol_offset):
         # TODO: normalize to make automatic
-        self.gamma_scale = 10
+        self.gamma_scale = 1e0
 
         # fan power (kW) model coefficients
         self.a0 = 0.0029
@@ -119,13 +119,13 @@ class bldg_grid_agg_data_driven_mdl_large:
         # Set penalties for temperature ref. tracking
         for i in np.arange(0, len(Q), 3):
             # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*1.0e-1 # -2; 0 for combined opt
+            Q[i] = Q[i]*1.0e0 # -2; 0 for combined opt
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
         for i in np.arange(2, len(Q), 3):
             # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*1.0e-1
+            Q[i] = Q[i]*1.0e-2
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting

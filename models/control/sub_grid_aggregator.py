@@ -11,6 +11,7 @@ class sub_grid_aggregator:
         self.horiz_len = horiz_len
         self.num_downstream = num_downstream
         self.num_upstream = num_upstream
+        self.num_bldgs_downstream = num_downstream - 1
 
         inputs = np.array([0.0])
         disturbances = np.array([0.0])
@@ -30,11 +31,11 @@ class sub_grid_aggregator:
         # print(self.num_downstream)
         # lkj
         self.A = np.zeros((1, 1))
-        self.Bu = np.zeros((1, self.num_downstream - 1))
+        self.Bu = np.zeros((1, self.num_bldgs_downstream))
         self.Bv = np.zeros((1, self.num_upstream))
         self.Bd = np.zeros((1, 1)) 
 
-        self.Bu_mean_inputs = np.zeros((1, self.num_downstream - 1))
+        self.Bu_mean_inputs = np.zeros((1, self.num_bldgs_downstream))
         self.Bd_mean_inputs = np.array([0.0])
         self.Cy_mean_outputs = np.zeros((self.num_downstream, 1))
         self.Cz_mean_outputs = np.zeros((self.num_downstream, 1))
@@ -42,19 +43,17 @@ class sub_grid_aggregator:
         self.Cy = np.array(
             [[0.0] for i in range(self.num_downstream)]
         )
-        print(self.Cy)
-        # lkj
         self.Dyu = np.array(
             np.vstack(
                 [
-                    [1.0]*2, # total p_ref power for tracking p_ref from super grid agg
-                    -1.0*np.eye(2) # ref to send to buildings
+                    [-1.0]*self.num_bldgs_downstream, # total p_ref power for tracking p_ref from super grid agg
+                    -1.0*np.eye(self.num_bldgs_downstream) # ref to send to buildings
                 ]
             )
         )
-        print(np.shape(self.Dyu))
-        print('!!!!!!!!!!!!!!!!!!!!!!!!!!', self.Dyu)
-        print('num dwonstream: ', self.num_downstream)
+        # print(np.shape(self.Dyu))
+        # print('!!!!!!!!!!!!!!!!!!!!!!!!!!', self.Dyu)
+        # print('num downstream: ', self.num_downstream)
         # lkj
 
         # self.Dyv = np.array(
@@ -68,15 +67,19 @@ class sub_grid_aggregator:
         self.Dyv = np.array(
             np.eye(self.num_upstream)
         )
-        print(np.shape(self.Dyv))
-        print(self.Dyv)
+        # print(np.shape(self.Dyv))
+        # print(self.Dyv)
         # lkj
         self.Dyd = np.zeros((self.num_downstream, 1))
         # print(self.Dyd)
         # lkj
 
         self.Cz = np.zeros((self.num_downstream, 1))
-        self.Dzu = np.eye(self.num_downstream, 2) # total p_ref power to send to super grid agg
+        # self.Dzu = np.eye(self.num_downstream, 2) # total p_ref power to send to super grid agg
+        # self.Dzu = np.array([[1., 1., 1.], [1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
+        # self.Dzu = np.array([[1., 1.], [1., 0.], [0., 1.]])
+        Dzu0 = np.array([1.]*self.num_bldgs_downstream)
+        self.Dzu = np.vstack((Dzu0, np.eye(self.num_bldgs_downstream)))
         self.Dzv = np.zeros((self.num_downstream, self.num_upstream))
         self.Dzd = np.zeros((self.num_downstream, 1))
 
@@ -93,10 +96,18 @@ class sub_grid_aggregator:
         # print(Q)
         # lkj
         Q = np.zeros(np.shape(Q))
-        Q[0, 0] = 1.0
-        Q[1, 1] = 5.0*1e-7
-        Q[2, 2] = 5.0*1e-7
-        # Q[3, 3] = 1.0*1e-10
+        # Q[0, 0] = 1.0
+        # Q[1, 1] = 5.0*1e-7
+        # Q[2, 2] = 5.0*1e-7
+        # Q[3, 3] = 5.0*1e-7
+        # Q[4, 4] = 1.0
+        # Q[5, 5] = 5.0*1e-7
+        # Q[6, 6] = 5.0*1e-7
+        # Q[7, 7] = 5.0*1e-7
+        for i in range(self.horiz_len):
+            Q[i*self.num_downstream, i*self.num_downstream] = 1.0
+            for j in range(self.num_bldgs_downstream):
+                Q[i*self.num_downstream + (j + 1), i*self.num_downstream + (j + 1)] = 5.0*1e-7
         # Q[4, 4] = 1.0*1e-10
         # Q[5, 5] = 1.0*1e-10
         # print(Q)
@@ -141,7 +152,7 @@ class sub_grid_aggregator:
             'bldg_Prefs', self.horiz_len*(self.num_downstream - 1), type='c',
             lower=0.0, upper=500.0, value=50.0
         )
-        self.numDVs = self.num_downstream
+        self.numDVs = self.num_downstream - 1
         return optProb
 
     def add_con_group(self, optProb):
