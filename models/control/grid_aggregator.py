@@ -6,8 +6,9 @@ from autograd import grad    # the only autograd function you may ever need
 
 class grid_aggregator:
     def __init__(self, horiz_len, num_downstream):
-        self.gamma_scale = 1
-
+        lrg = 1e0
+        med = 1e-4
+        self.gamma_scale = np.array([[lrg, med, med] * horiz_len]).transpose()
         self.horiz_len = horiz_len
         self.num_downstream = num_downstream
 
@@ -82,10 +83,16 @@ class grid_aggregator:
     def process_Q(self, Q):
         # print(Q)
         # lkj
-        Q = np.eye(np.shape(Q)[0]) * 1e-7 # weight for individual prefs
+        Q = np.eye(np.shape(Q)[0]) * 1e-1 # -7 weight for individual prefs
+        for i in np.arange(2, len(Q), self.num_downstream + 1):
+            # Q[i] = np.zeros(len(Q))
+            Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
+        for i in np.arange(3, len(Q), self.num_downstream + 1):
+            # Q[i] = np.zeros(len(Q))
+            Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
         for i in np.arange(0, len(Q), self.num_downstream + 1):
             # Q[i] = np.zeros(len(Q))
-            Q[i, i] = 1.0*1e-2 # -2, 0 weight for bulk ref
+            Q[i, i] = 10.0*1e0 # -2, 0 weight for bulk ref
         # print(Q)
         # lkj
 
@@ -111,7 +118,7 @@ class grid_aggregator:
         # Q[6, 6] = 5.0*1e-7
         # Q[7, 7] = 5.0*1e-7
 
-        return Q*1.0e4 #4
+        return Q*1.0e0 #4
 
     def process_S(self, S):
         S = S
@@ -138,7 +145,7 @@ class grid_aggregator:
     def add_var_group(self, optProb):
         optProb.addVarGroup(
             'bldg_Prefs', self.horiz_len*self.num_upstream, type='c',
-            lower=0.0, upper=200.0, value=50.0
+            lower=0.0, upper=200.0, value=[50.0, 50.0, 18.0]*self.horiz_len
         )
         self.numDVs = self.num_downstream
         return optProb

@@ -384,12 +384,15 @@ class subsystem():
 
         # optProb = self.add_constraints(optProb)
 
-        opt = SNOPT(optOptions=self.optOptions)
+        # opt = SNOPT(optOptions=self.optOptions)
+        opt = SNOPT()
         opt.setOption('Print file', value=self.optOptions['Print file'])
         opt.setOption('Summary file', value=self.optOptions['Summary file'])
-        opt.setOption('Iterations limit', 100)
-        # sol = opt(optProb, sens=self.sens)
-        sol = opt(optProb, sens='FDR')
+        opt.setOption('Iterations limit', 200)
+        opt.setOption('Major feasibility tolerance', 1e-20)
+        # opt.setOption('Violation limit', 100.0)
+        sol = opt(optProb, sens=self.sens)
+        # sol = opt(optProb, sens='FDR')
         # sol = opt(optProb)
 
         self.sol = sol
@@ -419,6 +422,13 @@ class subsystem():
                      + 2*dot(tp(self.uOpt), self.F) \
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T))
+        # if self.idn == 1:
+        #     print('##### idn: ', self.idn)
+        #     print('uOpt: ', self.uOpt)
+        #     print('u part: ', (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
+        #                 + 2*dot(tp(self.uOpt), self.F)))
+        #     print('v part: ', dot(dot(tp(self.V), self.E), self.V) \
+        #                 + 2*dot(tp(self.V), self.T))
         # print('obj_func: ', np.shape(funcs['obj']))
         # Compute constraints, if any are defined for control model
         # print('!!!!!: ', funcs['obj'])
@@ -455,9 +465,9 @@ class subsystem():
         # Parse the optimization variables defined in the control model file
         self.uOpt = self.control_model.parse_opt_vars(varDict)
 
-        funcsSens = self.control_model.sensitivity_func()
+        # funcsSens = self.control_model.sensitivity_func()
 
-        funcsSens = {}
+        # funcsSens = {}
         # funcsSens = {
         #     ('obj', 'yaw_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::2],
         #     ('obj', 'Ct_r') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::2]
@@ -472,17 +482,28 @@ class subsystem():
         # print(type(self.truth_model.T_z))
         # print('stuff: ', np.fill_diagonal(a, a.diagonal() + self.truth_model.T_z))
         # np.fill_diagonal(a, a.diagonal() / c)
-        funcsSens = {
-            ('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
-            ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
-            ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
-            ('hvac_con', 'Qhvac') : np.diag(np.ones(self.horiz_len)),
-            ('hvac_con', 'ms_dot') : -1*np.diag(self.uOpt[2::3] \
-                - self.truth_model.T_z.flatten()),
-            ('hvac_con', 'T_sa') : np.diag(-1*np.array(self.uOpt[1::3])),
-            ('T_building_con', 'Qhvac') : self.My[0::2, 0::3],
-            ('T_building_con', 'ms_dot') : self.My[0::2, 1::3],
-            ('T_building_con', 'T_sa') : self.My[0::2, 2::3]}
+        
+        # print(self.idn)
+        if self.idn == 0:
+            funcsSens = {
+                ('obj', 'bldg_Prefs') : (2*dot(self.H, self.uOpt) + 2*self.F)
+            }
+        else:
+            # print(self.My)
+            # print(np.eye(3)*((2*dot(self.H, self.uOpt) + 2*self.F)[1::3]))
+            funcsSens = {
+                ('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
+                ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
+                ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
+                ('hvac_con', 'Qhvac') : np.diag(np.ones(self.horiz_len)),
+                ('hvac_con', 'ms_dot') : -1*np.diag(self.uOpt[2::3,0] \
+                    - self.truth_model.T_z.flatten()),
+                ('hvac_con', 'T_sa') : np.diag(-1*np.array(self.uOpt[1::3,0])),
+                ('T_building_con', 'Qhvac') : self.My[0::3, 0::3],
+                ('T_building_con', 'ms_dot') : self.My[0::3, 1::3],
+                ('T_building_con', 'T_sa') : self.My[0::3, 2::3]
+            }
+
         #     #  ('con1', 'Qhvac') : np.ones(5)*1.0,
         #     #  ('con1', 'ms_dot') : -1*np.ones(5)*self.T_sa[0],
         #     #  ('con1', 'T_sa') : -1*np.ones(5)*self.ms_dot[0]}
@@ -620,6 +641,10 @@ class subsystem():
                 #    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
         self.gamma = 2*self.gamma_scale*(dot(self.E, self.V) + self.T \
                    + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))
+        # print('1: ', np.shape(self.gamma_scale))
+        # print('2: ', np.shape(2*(dot(self.E, self.V) + self.T \
+        #            + dot(dot(dot(tp(self.Ny), self.Q), self.My), self.uConv))))
+        # print('3: ', np.shape(self.gamma))
         # if self.idn ==0:
         #     print('self.E: ', self.E)
         #     print('self.V: ', self.V)

@@ -8,7 +8,7 @@ class bldg_grid_agg_data_driven_mdl_large:
     def __init__(self, ms_dot, T_sa, T_z, horiz_len, energy_red_weight,
     Qint_std, Qsol_std, Qint_scale, Qsol_scale, Qint_offset, Qsol_offset):
         # TODO: normalize to make automatic
-        self.gamma_scale = 1e0
+        self.gamma_scale = 1e-2
 
         # fan power (kW) model coefficients
         self.a0 = 0.0029
@@ -118,14 +118,14 @@ class bldg_grid_agg_data_driven_mdl_large:
     def process_Q(self, Q):
         # Set penalties for temperature ref. tracking
         for i in np.arange(0, len(Q), 3):
-            # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*1.0e0 # -2; 0 for combined opt
+            Q[i] = np.zeros(len(Q))
+            # Q[i] = Q[i]*1.0e0 # -2; 0 for combined opt
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
         for i in np.arange(2, len(Q), 3):
             # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*1.0e-2
+            Q[i] = Q[i]*5.0e0
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting
@@ -194,7 +194,7 @@ class bldg_grid_agg_data_driven_mdl_large:
 
     def add_var_group(self, optProb):
         optProb.addVarGroup('Qhvac', self.horiz_len, type='c', 
-                            lower=-600.0, upper=0.0, value=-32.)
+                            lower=-1200.0, upper=0.0, value=-32.)
         optProb.addVarGroup('ms_dot', self.horiz_len, type='c', 
                             lower=0.0, upper=100.0, value=0.8)
         optProb.addVarGroup('T_sa', self.horiz_len, type='c', 
