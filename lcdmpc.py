@@ -50,6 +50,105 @@ class LCDMPC():
 
         return outputs
 
+    def calc_stability(self):
+        Beta = self.subsystems[0].Beta
+        
+        Q_sub = [sub.Q for sub in self.subsystems]
+        S_sub = [sub.S for sub in self.subsystems]
+
+        My_sub = [sub.My for sub in self.subsystems]
+        Ny_sub = [sub.Ny for sub in self.subsystems]
+
+        Mz_sub = [sub.Mz for sub in self.subsystems]
+        Nz_sub = [sub.Nz for sub in self.subsystems]
+
+        Q_x = [np.shape(val)[0] for val in Q_sub]
+        Q_y = [np.shape(val)[1] for val in Q_sub]
+        Q = np.zeros((np.sum(Q_x), np.sum(Q_y)))
+        for i in range(len(Q_x)):
+            Q[0 + int(np.sum(Q_x[:i])):Q_x[i] + int(np.sum(Q_x[:i])), 0 + int(np.sum(Q_y[:i])):Q_y[i] + int(np.sum(Q_y[:i]))] = Q_sub[i]
+
+        # Q = np.delete(Q, Q_x[0], 0)
+        # Q = np.delete(Q, Q_x[0], 1)
+        
+
+        S_x = [np.shape(val)[0] for val in S_sub]
+        S_y = [np.shape(val)[1] for val in S_sub]
+        S = np.zeros((np.sum(S_x), np.sum(S_y)))
+        for i in range(len(S_x)):
+            S[0 + int(np.sum(S_x[:i])):S_x[i] + int(np.sum(S_x[:i])), 0 + int(np.sum(S_y[:i])):S_y[i] + int(np.sum(S_y[:i]))] = S_sub[i]
+
+        My_x = [np.shape(val)[0] for val in My_sub]
+        My_y = [np.shape(val)[1] for val in My_sub]
+        My = np.zeros((np.sum(My_x), np.sum(My_y)))
+        for i in range(len(My_x)):
+            My[0 + int(np.sum(My_x[:i])):My_x[i] + int(np.sum(My_x[:i])), 0 + int(np.sum(My_y[:i])):My_y[i] + int(np.sum(My_y[:i]))] = My_sub[i]
+
+        # My = np.delete(My, My_x[0], 0)
+
+        Ny_x = [np.shape(val)[0] for val in Ny_sub]
+        Ny_y = [np.shape(val)[1] for val in Ny_sub]
+        Ny = np.zeros((np.sum(Ny_x), np.sum(Ny_y)))
+        for i in range(len(Ny_x)):
+            Ny[0 + int(np.sum(Ny_x[:i])):Ny_x[i] + int(np.sum(Ny_x[:i])), 0 + int(np.sum(Ny_y[:i])):Ny_y[i] + int(np.sum(Ny_y[:i]))] = Ny_sub[i]
+
+        Mz_x = [np.shape(val)[0] for val in Mz_sub]
+        Mz_y = [np.shape(val)[1] for val in Mz_sub]
+        Mz = np.zeros((np.sum(Mz_x), np.sum(Mz_y)))
+        for i in range(len(Mz_x)):
+            Mz[0 + int(np.sum(Mz_x[:i])):Mz_x[i] + int(np.sum(Mz_x[:i])), 0 + int(np.sum(Mz_y[:i])):Mz_y[i] + int(np.sum(Mz_y[:i]))] = Mz_sub[i]
+        
+        Nz_x = [np.shape(val)[0] for val in Nz_sub]
+        Nz_y = [np.shape(val)[1] for val in Nz_sub]
+        Nz = np.zeros((np.sum(Nz_x), np.sum(Nz_y)))
+        for i in range(len(Nz_x)):
+            Nz[0 + int(np.sum(Nz_x[:i])):Nz_x[i] + int(np.sum(Nz_x[:i])), 0 + int(np.sum(Nz_y[:i])):Nz_y[i] + int(np.sum(Nz_y[:i]))] = Nz_sub[i]
+
+        # val = dot(dot(tp(My), Q), My)
+        # for row in val:
+        #     print(row)
+
+        # print('1: ')
+        # print(np.shape(self.subsystems[0].My))
+        # print(np.shape(self.subsystems[0].Q))
+        # print('2: ')
+        # print(np.shape(self.subsystems[1].My))
+        # print(np.shape(self.subsystems[1].Q))
+        # print(dot(dot(tp(My), Q), My))
+        X = np.linalg.pinv(S + dot(dot(tp(My), Q), My))
+
+        # klj
+
+        horiz_len = 5
+        Gamma = np.zeros((6*horiz_len, 6*horiz_len))
+        Gamma[0:3*horiz_len, 3*horiz_len:] = np.eye(3*horiz_len)
+        Gamma[3*horiz_len:, 0:3*horiz_len] = np.eye(3*horiz_len)
+
+        # print(np.shape(Beta * np.eye(np.shape(X)[0])))
+        # print(np.shape(- dot(dot(dot(dot((1 - Beta), X), tp(My)), Q), Ny)))
+        # print(np.shape(-0.5 * dot(dot((1 - Beta), X), tp(Mz))))
+        # print(np.shape([[Beta * np.eye(np.shape(X)[0]), - dot(dot(dot(dot((1 - Beta), X), tp(My)), Q), Ny), -0.5 * dot(dot((1 - Beta), X), tp(Mz))]]))
+
+        # print(np.shape(dot(dot(dot(tp(Gamma), tp(Ny)), Q), np.eye(np.shape(My)[0]) - dot(dot(dot(dot((1 - Beta), My), X), tp(My)), Q)))
+        # print(np.shape(np.concatenate((dot(dot(Gamma, Mz), Beta), dot(Gamma, (Nz - dot(dot(dot(dot(dot((1 - Beta), Mz), X), tp(My)), Q), Ny))), -0.5 * dot(dot(dot(dot((1 - Beta), Gamma), Mz), X), tp(Mz))), axis=1)))
+        delta = np.array(
+            np.concatenate(
+                (np.concatenate((Beta * np.eye(np.shape(X)[0]), - dot(dot(dot(dot((1 - Beta), X), tp(My)), Q), Ny), -0.5 * dot(dot((1 - Beta), X), tp(Mz))), axis=1),
+                np.concatenate((dot(dot(Gamma, Mz), Beta), dot(Gamma, (Nz - dot(dot(dot(dot(dot((1 - Beta), Mz), X), tp(My)), Q), Ny))), -0.5 * dot(dot(dot(dot((1 - Beta), Gamma), Mz), X), tp(Mz))), axis=1),
+                np.concatenate(
+                    (
+                        2 * dot(dot(dot(dot(tp(Gamma), tp(Ny)), Q), My), Beta),
+                        2* dot(dot(dot(dot(tp(Gamma), tp(Ny)), Q), np.eye(np.shape(My)[0]) - dot(dot(dot(dot((1 - Beta), My), X), tp(My)), Q)), Ny),
+                        dot(tp(Gamma), tp(Nz) - dot(dot(dot(dot(dot((1 - Beta), tp(Ny)), Q), My), X), tp(Mz)))
+                    )
+                , axis=1))
+            )
+        )
+
+        print(np.max(np.abs(np.linalg.eigvals(delta))))
+        # print(np.shape(delta))
+        # lkj
+
     def update_control_filter(self):
         for subsys in self.subsystems:
             subsys.update_control_filter()
@@ -92,6 +191,19 @@ class LCDMPC():
             for subsys in self.subsystems:
                 subsys.control_model.num_upstream = len(subsys.upstream)
                 subsys.control_model.num_downstream = len(subsys.downstream)
+
+        # Gamma_x = [sub.control_model.num_downstream for sub in self.subsystems]
+
+        # Gamma = np.zeros((np.sum(Gamma_x), np.sum(Gamma_x)))
+
+        # for i in range(np.sum(Gamma_x)):
+        #     print(self.subsystems[i].downstream)
+            
+            # Gamma[0 + int(np.sum(Q_x[:i])):Q_x[i] + int(np.sum(Q_x[:i])), 0 + int(np.sum(Q_y[:i])):Q_y[i] + int(np.sum(Q_y[:i]))] = Q_sub[i]
+
+        # print(Gamma)
+
+        # lkj
 
     def update_downstream_outputs(self):
         """
@@ -243,7 +355,7 @@ class subsystem():
             self.optOptions = optOptions
         else:
             self.optOptions = {'Major feasibility tolerance' : 1e-4}
-        print(self.optOptions)
+        # print(self.optOptions)
 
         self.x0 = np.zeros((self.nxA, 1))
         # self.x0 = np.array([[0.0] for _ in range(self.nxA)])
