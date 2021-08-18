@@ -10,6 +10,10 @@ class bldg_grid_agg_data_driven_mdl_med:
         # TODO: normalize to make automatic
         self.gamma_scale = 1e0
 
+        # temp limits
+        lower_temp_lim = 20.0
+        upper_temp_lim = 23.3
+
         # fan power (kW) model coefficients
         self.a0 = 0.0029
         self.a1 = -0.0151
@@ -116,14 +120,16 @@ class bldg_grid_agg_data_driven_mdl_med:
     def process_Q(self, Q):
         # Set penalties for temperature ref. tracking
         for i in np.arange(0, len(Q), 3):
-            # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*5.0e1 # -2, 0
+            # if i == 0:
+            Q[i] = np.zeros(len(Q))
+            # else:
+                # Q[i] = Q[i]*200.0e0 # -2; 0 for combined opt
         # Set penalties for absolute power ref tracking to zero
         for i in np.arange(1, len(Q), 3):
             Q[i] = np.zeros(len(Q))
         for i in np.arange(2, len(Q), 3):
             # Q[i] = np.zeros(len(Q))
-            Q[i] = Q[i]*10.0e0 # -4, -1, -3
+            Q[i] = Q[i]*2.0e0 # -4, -1, -3
 
         # manual scaling of weight parameters
         # TODO: normalize to automate weighting

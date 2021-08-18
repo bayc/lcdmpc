@@ -15,9 +15,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from models.control.bldg_grid_agg_data_driven_bldg60 import bldg_grid_agg_data_driven_bldg60
 from models.control.bldg_grid_agg_data_driven_mdl_large import bldg_grid_agg_data_driven_mdl_large
 from models.control.bldg_grid_agg_data_driven_mdl_med import bldg_grid_agg_data_driven_mdl_med
 from models.control.bldg_grid_agg_data_driven_mdl_small import bldg_grid_agg_data_driven_mdl_small
+from models.simulation.bldg_sim_mdl_bldg60 import bldg_sim_mdl_bldg60
 from models.simulation.bldg_sim_mdl_large import bldg_sim_mdl_large
 from models.simulation.bldg_sim_mdl_med import bldg_sim_mdl_med
 from models.simulation.bldg_sim_mdl_small import bldg_sim_mdl_small
@@ -30,7 +32,7 @@ dt = 1              # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 2*60 + dt_num_offset     # Length of simulation in minutes
+time = 30 + dt_num_offset     # Length of simulation in minutes
 horiz_len = 5   # Prediction horizion length
 commuincation_iterations = 12 # number of communications between subsystems
 Beta = 0.4      # Convex combination parameter for control action
@@ -49,19 +51,19 @@ num_buildings_total = num_buildings_large + num_buildings_medium + num_buildings
 ms_dot_large = 8.0
 T_sa_large = 12.8
 T_oa_large = 28.
-T_z_large = 21.2
+T_z_large = 23.0 # 21.2
 T_e_large = 20.
 
 ms_dot_large2 = 6.0
 T_sa_large2 = 12.8
 T_oa_large2 = 28.
-T_z_large2 = 22.0
+T_z_large2 = 23.0 # 22.0
 T_e_large2 = 20.
 
 ms_dot_large3 = 10.0
 T_sa_large3 = 12.8
 T_oa_large3 = 28.
-T_z_large3 = 22.3
+T_z_large3 = 23.0 # 22.3
 T_e_large3 = 20.
 
 
@@ -100,9 +102,12 @@ outputs1 = [1]
 outputs2 = [1]
 
 # refs_large = [[0.0], [20.], [0.0]]
-refs_large = [[21.5 - 22.794], [20.], [0.0]]
-refs_large2 = [[21.5 - 22.794], [20.], [0.0]]
-refs_large3 = [[21.5 - 22.794], [20.], [0.0]]
+# refs_large = [[21.5 - 22.794], [20.], [0.0]]
+# refs_large2 = [[21.5 - 22.794], [20.], [0.0]]
+# refs_large3 = [[21.5 - 22.794], [20.], [0.0]]
+refs_large = [[21.5 - 20.853], [20.], [0.0]]
+refs_large2 = [[21.5 - 20.853], [20.], [0.0]]
+refs_large3 = [[21.5 - 20.853], [20.], [0.0]]
 refs_large_all = [refs_large, refs_large2, refs_large3]
 
 refs_medium = [[21.5 - 23.8812], [20.], [0.0]]
@@ -114,7 +119,7 @@ Toa_horiz_normed = Toa_horiz/Toa_horiz[0]
 
 np.random.seed(1)
 # grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 40*num_buildings_large, 2.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
-grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 40*num_buildings_large, 2.0, int(10*60/dt) + horiz_len)#*Toa_horiz_normed
+grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 52*num_buildings_large, 2.0, int(10*60/dt) + horiz_len)#*Toa_horiz_normed
 
 refs_grid_total = pd.DataFrame()
 for i in range(int(time/dt) + horiz_len):
@@ -175,17 +180,31 @@ energy_red_weight = [0.0]*num_buildings_total
 
 for i in range(num_buildings_large):
     building_control_models.append(
-        bldg_grid_agg_data_driven_mdl_large(
+        bldg_grid_agg_data_driven_bldg60(
             ms_dot_large_all[i], T_sa_large_all[i], T_z_large_all[i], horiz_len, energy_red_weight[i],
             Qint_std[i], Qsol_std[i], Qint_scale[i], Qsol_scale[i],
             Qint_offset[i], Qsol_offset[i]
         )
     )
     building_truth_models.append(
-        bldg_sim_mdl_large(dt/60, ms_dot_large_all[i], T_sa_large_all[i], T_z_large_all[i], T_e_large_all[i], start_time,
+        bldg_sim_mdl_bldg60(dt/60, ms_dot_large_all[i], T_sa_large_all[i], T_z_large_all[i], T_e_large_all[i], start_time,
         Qint_std[i], Qsol_std[i], Qint_scale[i], Qsol_scale[i],
         Qint_offset[i], Qsol_offset[i])
     )
+
+# for i in range(num_buildings_large):
+#     building_control_models.append(
+#         bldg_grid_agg_data_driven_mdl_large(
+#             ms_dot_large_all[i], T_sa_large_all[i], T_z_large_all[i], horiz_len, energy_red_weight[i],
+#             Qint_std[i], Qsol_std[i], Qint_scale[i], Qsol_scale[i],
+#             Qint_offset[i], Qsol_offset[i]
+#         )
+#     )
+#     building_truth_models.append(
+#         bldg_sim_mdl_large(dt/60, ms_dot_large_all[i], T_sa_large_all[i], T_z_large_all[i], T_e_large_all[i], start_time,
+#         Qint_std[i], Qsol_std[i], Qint_scale[i], Qsol_scale[i],
+#         Qint_offset[i], Qsol_offset[i])
+#     )
 
 for i in range(num_buildings_medium):
     building_control_models.append(

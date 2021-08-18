@@ -7,8 +7,9 @@ from autograd import grad    # the only autograd function you may ever need
 class grid_aggregator:
     def __init__(self, horiz_len, num_downstream):
         lrg = 1e0
-        med = 1e-4
-        self.gamma_scale = np.array([[lrg, med, med] * horiz_len]).transpose()
+        med = 1e0
+        # self.gamma_scale = np.array([[lrg, med, med] * horiz_len]).transpose()
+        self.gamma_scale = 1e0
         self.horiz_len = horiz_len
         self.num_downstream = num_downstream
 
@@ -81,47 +82,21 @@ class grid_aggregator:
         self.Dzd_lin = np.zeros((self.num_downstream, 1))
 
     def process_Q(self, Q):
-        # print(Q)
-        # lkj
-        Q = np.eye(np.shape(Q)[0]) * 1e-1 # -7 weight for individual prefs
-        for i in np.arange(2, len(Q), self.num_downstream + 1):
-            # Q[i] = np.zeros(len(Q))
-            Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
-        for i in np.arange(3, len(Q), self.num_downstream + 1):
-            # Q[i] = np.zeros(len(Q))
-            Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
+        Q = np.eye(np.shape(Q)[0]) * 1.0e-1 # -7 weight for individual prefs
+        # for i in np.arange(2, len(Q), self.num_downstream + 1):
+        #     # Q[i] = np.zeros(len(Q))
+        #     Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
+        # for i in np.arange(3, len(Q), self.num_downstream + 1):
+        #     # Q[i] = np.zeros(len(Q))
+        #     Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
         for i in np.arange(0, len(Q), self.num_downstream + 1):
             # Q[i] = np.zeros(len(Q))
-            Q[i, i] = 10.0*1e0 # -2, 0 weight for bulk ref
-        # print(Q)
-        # lkj
-
-        # Q[0, 0] = 1.0*1e-2
-        # Q[1, 1] = 1.0*1e-7
-        # Q[2, 2] = 1.0*1e-7
-        # Q[3, 3] = 1.0*1e-2
-        # Q[4, 4] = 1.0*1e-7
-        # Q[5, 5] = 1.0*1e-7
-        # Q[6, 6] = 1.0*1e-2
-        # Q[7, 7] = 1.0*1e-7
-        # Q[8, 8] = 1.0*1e-7
-        # Q[6, 6] = 1.0*1e-1
-        # Q[12, 12] = 1.0*1e-1
-        # Q[18, 18] = 1.0*1e-1
-        # Q[24, 24] = 1.0*1e-1
-        # Q[30, 30] = 1.0*1e-1
-        # Q[1, 1] = 5.0*1e-7
-        # Q[2, 2] = 5.0*1e-7
-        # Q[3, 3] = 5.0*1e-7
-        # Q[4, 4] = 5.0*1e-7
-        # Q[5, 5] = 5.0*1e-7
-        # Q[6, 6] = 5.0*1e-7
-        # Q[7, 7] = 5.0*1e-7
+            Q[i, i] = 1.0*1e-1 # 10.0, -2, 0 weight for bulk ref
 
         return Q*1.0e0 #4
 
     def process_S(self, S):
-        S = S
+        S = S*0.0
         return S
 
     def get_forecast(self, current_time, disturbance_data):
@@ -145,7 +120,7 @@ class grid_aggregator:
     def add_var_group(self, optProb):
         optProb.addVarGroup(
             'bldg_Prefs', self.horiz_len*self.num_upstream, type='c',
-            lower=0.0, upper=200.0, value=[50.0, 50.0, 18.0]*self.horiz_len
+            lower=0.0, upper=200.0, value=40.0
         )
         self.numDVs = self.num_downstream
         return optProb
