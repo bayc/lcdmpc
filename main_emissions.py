@@ -31,14 +31,14 @@ from models.control.grid_aggregator import grid_aggregator
 
 dt_num_offset = 30
 
-start_time = 9*60 - dt_num_offset   # Start time in minutes; 700
+start_time = 24*60 - dt_num_offset   # Start time in minutes; 700
 dt = 1              # Time-step in minutes
 
 tmp = opt.LCDMPC(start_time, dt)
 
-time = 60*8 + dt_num_offset     # Length of simulation in minutes
+time = 24*60 + dt_num_offset     # Length of simulation in minutes
 horiz_len = 5   # Prediction horizion length
-commuincation_iterations = 12 # number of communications between subsystems
+commuincation_iterations = 6 # number of communications between subsystems
 Beta = 0.4      # Convex combination parameter for control action
 
 time_array = np.arange(start_time, (start_time + time), dt)
@@ -48,7 +48,7 @@ bldg1_small_disturb_file = 'input/ROM_simulation_data_small_office.csv'
 bldg1_disturb_file = 'input/ROM_simulation_data_large_office_denver.csv'
 
 num_buildings_large = 1
-num_buildings_medium = 2
+num_buildings_medium = 0
 num_buildings_small = 0
 num_buildings_total = num_buildings_large + num_buildings_medium + num_buildings_small
 
@@ -106,12 +106,12 @@ outputs1 = [1]
 outputs2 = [1]
 
 # refs_large = [[0.0], [20.], [0.0]]
-refs_large = [[21.5 - 22.794], [20.], [0.0]]
-refs_large2 = [[21.5 - 22.794], [20.], [0.0]]
-refs_large3 = [[21.5 - 22.794], [20.], [0.0]]
-# refs_large = [[21.5 - 20.853], [20.], [0.0]]
-# refs_large2 = [[21.5 - 20.853], [20.], [0.0]]
-# refs_large3 = [[21.5 - 20.853], [20.], [0.0]]
+# refs_large = [[21.5 - 22.794], [20.], [0.0]]
+# refs_large2 = [[21.5 - 22.794], [20.], [0.0]]
+# refs_large3 = [[21.5 - 22.794], [20.], [0.0]]
+refs_large = [[21.65 - 22.794], [20.], [0.0], [0.0]]
+refs_large2 = [[21.5 - 22.794], [20.], [0.0], [0.0]]
+refs_large3 = [[21.5 - 22.794], [20.], [0.0], [0.0]]
 # refs_60 = [[21.5 - 20.853], [20.], [0.0]]
 # refs_62 = [[21.5 - 20.853], [20.], [0.0]]
 # refs_large_all = [refs_60, refs_62]
@@ -126,7 +126,7 @@ Toa_horiz = disturbance_data.iloc[start_time: start_time + int(time/dt) + horiz_
 Toa_horiz_normed = Toa_horiz/Toa_horiz[0]
 
 np.random.seed(1)
-grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 40*num_buildings_large, 2.0, int(time/dt) + horiz_len)#*Toa_horiz_normed
+grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 10*num_buildings_large, 0.0, int(time/dt) + horiz_len)*Toa_horiz_normed
 # grid_agg_ref = np.random.normal(6*num_buildings_small + 20*num_buildings_medium + 12*num_buildings_large, 2.0, int(10*60/dt) + horiz_len)#*Toa_horiz_normed
 
 refs_grid_total = pd.DataFrame()
@@ -291,6 +291,7 @@ connections = [[0, i+1] for i in range(num_buildings_total)] + \
 tmp.build_interconnections(interconnections=connections)
 
 outputs_all = []
+disturbance_all = []
 controls_all = []
 gamma_all = []
 
@@ -339,12 +340,13 @@ for i in range(int(time/dt)):
     # Get updated forecast inputs
     tmp.update_forecast_inputs()
     # Gather control actions for plotting purposes
+    disturbance_all.append([[subsys.d] for subsys in tmp.subsystems])
     controls_all.append([[subsys.uConv] for subsys in tmp.subsystems])
     gamma_all.append(gamma_comm)
 
-# import pickle
+import pickle
 
-# pickle.dump([tmp, outputs_all, controls_all, gamma_all], open('results.p', 'wb'))
+pickle.dump([tmp, outputs_all, disturbance_all, controls_all, gamma_all], open('results.p', 'wb'))
 
 # tmp, outputs_all, controls_all, gamma_all = pickle.load(
 #     open('results/1lrg2med/8hrs_30minwrmup_5horiz_0.4beta_TempRefTrackAll/results.p', 'rb')
@@ -455,7 +457,7 @@ fig, axes = plt.subplots(2, 2, figsize=(16,10))
 disturbance_data = pd.read_csv(bldg1_disturb_file)
 
 ax2 = axes[0, 0]
-bldg_temp_legend = ['Large Office Building 0', 'Medium Office Building 1', 'Medium Office Building 2']
+bldg_temp_legend = ['Large Office Building 0']
 for i in range(num_buildings_total):
     ax2.plot(
         time_array[dt_num_offset:], np.array(plot_temps[i]).flatten()[dt_num_offset:]
@@ -473,6 +475,7 @@ ax2.plot(
 ax2.plot(
     time_array[dt_num_offset:], T_upper*np.ones(len(time_array))[dt_num_offset:], '--k'
 )
+ax2.plot(time_array[dt_num_offset:], (np.array(refs_large[0]) + 22.794)*np.ones(len(time_array))[dt_num_offset:], '--r')
 ax2.legend(bldg_temp_legend + ['Outdoor Air Temp'])
 xticks = ax2.get_xticks()
 ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
@@ -480,9 +483,25 @@ ax2.set_title('Building Temperatures')
 ax2.set_ylabel('Temperature [C]')
 ax2.set_xlabel('Time')
 
+# ax2 = axes[1, 0]
+# bldg_temp_legend = ['Emissions Data']
+
+# ax2.plot(
+#     time_array[dt_num_offset:],
+#     disturbance_data.iloc[
+#         start_time + dt_num_offset: start_time + int(time/dt)
+#     ]['emmissions'].values, color='gray'
+# )
+
+# xticks = ax2.get_xticks()
+# ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
+# ax2.set_title('Emissions Rate of Electricity Used')
+# ax2.set_ylabel('CO2 Emissions [kg/MWh]')
+# ax2.set_xlabel('Time')
+
 colors = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
 ax2 = axes[1, 0]
-bldg_power_legend = ['Large Office Building 0', 'Medium Office Building 1', 'Medium Office Building 2']
+bldg_power_legend = ['Large Office Building', 'Medium Office Building 1', 'Medium Office Building 2']
 for i in range(num_buildings_total):
     ax2.plot(
         time_array[dt_num_offset:],
@@ -508,6 +527,37 @@ ax2.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xti
 ax2.set_title('Building Powers')
 ax2.set_ylabel('Power [kW]')
 ax2.set_xlabel('Time')
+
+# emissions_used = np.multiply(
+#     disturbance_data.iloc[start_time + dt_num_offset: start_time + int(time/dt)]['emmissions'].values,
+#     np.array(total_power).flatten()[dt_num_offset:]/1e3,
+# )
+
+# from numpy import trapz
+
+# total_emissions = trapz(emissions_used/60, dx=1)
+# total_power = trapz(np.array(total_power).flatten()[dt_num_offset:], dx=1)
+# print('total emissions: ', total_emissions)
+# print('total power: ', total_power)
+
+# ax4 = axes[0, 1]
+# ax4.plot(
+#     time_array[dt_num_offset:],
+#     emissions_used,
+#     '-b'
+# )
+# # ax4.plot(
+# #     time_array[dt_num_offset:],
+# #     np.array(grid_prefs_total).flatten()[dt_num_offset:],
+# #     '-r'
+# # )
+# # ax4.plot(time_array[dt_num_offset:], grid_agg_ref[dt_num_offset-1:time-1], '-.k')
+# ax4.legend(['CO2 Emissions'])
+# xticks = ax4.get_xticks()
+# ax4.set_xticklabels(['{:02.0f}:{:02.0f}'.format(*divmod(val, 60)) for val in xticks])
+# ax4.set_title('Instantaneous CO2 Emissions')
+# ax4.set_ylabel('CO2 Emissions')
+# ax4.set_xlabel('Time')
 
 ax4 = axes[0, 1]
 ax4.plot(

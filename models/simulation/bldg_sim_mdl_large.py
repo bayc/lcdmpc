@@ -30,7 +30,7 @@ class bldg_sim_mdl_large:
         self.inputs = [ms_dot, T_sa]
         
         # keys to use to grab distubance values from input .csv
-        self.disturb_keys = ['T_outside', 'Q_internal', 'Q_solar']
+        self.disturb_keys = ['T_outside', 'Q_internal', 'Q_solar', 'emmissions']
 
         self.reinit()
 

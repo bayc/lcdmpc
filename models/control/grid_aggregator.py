@@ -6,10 +6,10 @@ from autograd import grad    # the only autograd function you may ever need
 
 class grid_aggregator:
     def __init__(self, horiz_len, num_downstream):
-        lrg = 1e0
-        med = 1e0
+        lrg = 1e0 # 0e0 for emissions only
+        med = 1e0 # 0e0 for emissions only
         # self.gamma_scale = np.array([[lrg, med, med] * horiz_len]).transpose()
-        self.gamma_scale = 1e0
+        self.gamma_scale = 1e0 # 0e0 for emissions only
         self.horiz_len = horiz_len
         self.num_downstream = num_downstream
 
@@ -82,7 +82,7 @@ class grid_aggregator:
         self.Dzd_lin = np.zeros((self.num_downstream, 1))
 
     def process_Q(self, Q):
-        Q = np.eye(np.shape(Q)[0]) * 1.0e-1 # -7 weight for individual prefs
+        Q = np.eye(np.shape(Q)[0]) * 1.0e0 # -7 weight for individual prefs
         # for i in np.arange(2, len(Q), self.num_downstream + 1):
         #     # Q[i] = np.zeros(len(Q))
         #     Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
@@ -91,7 +91,7 @@ class grid_aggregator:
         #     Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
         for i in np.arange(0, len(Q), self.num_downstream + 1):
             # Q[i] = np.zeros(len(Q))
-            Q[i, i] = 1.0*1e-1 # 10.0, -2, 0 weight for bulk ref
+            Q[i, i] = 1.0e1 # 10.0, -2, 0 weight for bulk ref
 
         return Q*1.0e0 #4
 
@@ -145,6 +145,9 @@ class grid_aggregator:
             refs_start = np.where(refs_total['time'] == current_time)[0][0]
             refs = refs_total['grid_ref'][refs_start: refs_start + self.horiz_len]
             refs = np.array([val for val in refs]).flatten()
+            # curr_time = np.mod(current_time, 1440)
+            # if curr_time < 7*60 or curr_time > 18*60:
+            #     refs = refs / 4
             # print('*** 1: ', np.array(refs).reshape(len(refs), 1))
             return np.array(refs).reshape(len(refs), 1)
         else:

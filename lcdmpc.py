@@ -46,12 +46,13 @@ class LCDMPC():
             # print('outputs: ', outputs)
 
         # TODO: change to date-time; update in other places
-        self.current_time = self.current_time + 1
+        self.current_time = self.current_time + self.time_step
 
         return outputs
 
     def calc_stability(self):
         Beta = self.subsystems[0].Beta
+        horiz_len = self.subsystems[0].horiz_len
         
         Q_sub = [sub.Q for sub in self.subsystems]
         S_sub = [sub.S for sub in self.subsystems]
@@ -119,7 +120,7 @@ class LCDMPC():
 
         # klj
 
-        horiz_len = 5
+        # horiz_len = 5
         Gamma = np.zeros((6*horiz_len, 6*horiz_len))
         Gamma[0:3*horiz_len, 3*horiz_len:] = np.eye(3*horiz_len)
         Gamma[3*horiz_len:, 0:3*horiz_len] = np.eye(3*horiz_len)
@@ -399,9 +400,7 @@ class subsystem():
     def update_forecast(self, current_time):
         # disturbance horizon
         self.d = self.truth_model.get_forecast(current_time, self.disturbance_data)
-        # print('self.d: ', self.d)
         self.D = self.control_model.get_forecast(current_time, self.disturbance_data)
-        # print('self.D: ', self.D)
 
     def relinearize(self, control_model, inputs, disturb, outputs):
 
@@ -530,22 +529,25 @@ class subsystem():
         # print('idn: ', self.idn)
         # print('obj1: ', dot(dot(tp(self.uOpt), self.H), self.uOpt))
         # print('obj2: ', 2*dot(tp(self.uOpt), self.F))
+        # print('obj3: ', dot(dot(tp(self.V), self.E), self.V))
+        # print('obj4: ', 2*dot(tp(self.V), self.T))
         funcs['obj'] = (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
                      + 2*dot(tp(self.uOpt), self.F) \
                      + dot(dot(tp(self.V), self.E), self.V) \
                      + 2*dot(tp(self.V), self.T))
         # if self.idn == 1:
-        #     print('##### idn: ', self.idn)
-        #     print('uOpt: ', self.uOpt)
-        #     print('u part: ', (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
-        #                 + 2*dot(tp(self.uOpt), self.F)))
-        #     print('v part: ', dot(dot(tp(self.V), self.E), self.V) \
-        #                 + 2*dot(tp(self.V), self.T))
+            # print('##### idn: ', self.idn)
+            # print('uOpt: ', self.uOpt)
+            # print('u part: ', (dot(dot(tp(self.uOpt), self.H), self.uOpt) \
+                        # + 2*dot(tp(self.uOpt), self.F)))
+            # print('v part: ', dot(dot(tp(self.V), self.E), self.V) \
+            #             + 2*dot(tp(self.V), self.T))
         # print('obj_func: ', np.shape(funcs['obj']))
         # Compute constraints, if any are defined for control model
         # print('!!!!!: ', funcs['obj'])
         self.update_Y()
         # print('self.Y: ', self.Y)
+        # print('self.refs: ', self.refs)
         funcs = self.control_model.compute_cons(funcs, self.uOpt, self.Y)
 
         fail = False
@@ -611,9 +613,9 @@ class subsystem():
                 ('hvac_con', 'ms_dot') : -1*np.diag(self.uOpt[2::3,0] \
                     - self.truth_model.T_z.flatten()),
                 ('hvac_con', 'T_sa') : np.diag(-1*np.array(self.uOpt[1::3,0])),
-                ('T_building_con', 'Qhvac') : self.My[0::3, 0::3],
-                ('T_building_con', 'ms_dot') : self.My[0::3, 1::3],
-                ('T_building_con', 'T_sa') : self.My[0::3, 2::3]
+                ('T_building_con', 'Qhvac') : self.My[0::4, 0::3],
+                ('T_building_con', 'ms_dot') : self.My[0::4, 1::3],
+                ('T_building_con', 'T_sa') : self.My[0::4, 2::3]
             }
 
         #     #  ('con1', 'Qhvac') : np.ones(5)*1.0,
@@ -736,15 +738,28 @@ class subsystem():
         # print('term4: ', 0.5*dot(tp(self.Nz), self.Psi))
         # print('self.idn: ', self.idn)
 
+        # print('a: ', dot(tp(self.My), self.Q))
+        # print('b: ', dot(self.Fy, self.x0))
+        # print('c: ', dot(self.Ny, self.V))
+        # print('d: ', dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+        #         )))
+        # print('e: ', self.refs)
 
-        self.F = dot(dot(tp(self.My), self.Q), (dot(self.Fy, self.x0) \
-               + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
+
+        self.F = dot(
+            dot(tp(self.My), self.Q),
+            (dot(self.Fy, self.x0) + dot(self.Ny, self.V) + dot(self.Py, self.D - np.tile(
                     self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
                 )) - self.refs)) \
                + 0.5*dot(tp(self.Mz), self.Psi)
+        # self.T = dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) \
+        #        + dot(self.Py, self.D - np.tile(
+        #             self.control_model.Bd_mean_inputs, self.horiz_len
+        #         ).reshape(np.shape(self.Py)[1], 1)) - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
         self.T = dot(dot(tp(self.Ny), self.Q), (dot(self.Fy, self.x0) \
-               + dot(self.Py, self.D - np.tile(
-                    self.control_model.Bd_mean_inputs, self.horiz_len
+                + dot(self.Py, self.D - np.tile(
+                tp(self.control_model.Bd_mean_inputs), self.horiz_len
                 ).reshape(np.shape(self.Py)[1], 1)) - self.refs)) + 0.5*dot(tp(self.Nz), self.Psi)
 
     def calc_sens(self):
