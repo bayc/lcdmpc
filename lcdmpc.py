@@ -597,23 +597,45 @@ class subsystem():
         
         # print(self.idn)
         if self.idn == 0:
+            # funcsSens = {
+            #     ('obj', 'bldg_Prefs') : (2*dot(self.H, self.uOpt) + 2*self.F)
+            # }
             funcsSens = {
-                ('obj', 'bldg_Prefs') : (2*dot(self.H, self.uOpt) + 2*self.F)
+                'obj': {
+                    'bldg_Prefs' : [(2*dot(self.H, self.uOpt) + 2*self.F)]
+                }
             }
         else:
             # print(self.My)
             # print(np.eye(3)*((2*dot(self.H, self.uOpt) + 2*self.F)[1::3]))
+            # funcsSens = {
+            #     ('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
+            #     ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
+            #     ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
+            #     ('hvac_con', 'Qhvac') : np.diag(np.ones(self.horiz_len)),
+            #     ('hvac_con', 'ms_dot') : -1*np.diag(self.uOpt[2::3,0] \
+            #         - self.truth_model.T_z.flatten()),
+            #     ('hvac_con', 'T_sa') : np.diag(-1*np.array(self.uOpt[1::3,0])),
+            #     ('T_building_con', 'Qhvac') : self.My[0::3, 0::3],
+            #     ('T_building_con', 'ms_dot') : self.My[0::3, 1::3],
+            #     ('T_building_con', 'T_sa') : self.My[0::3, 2::3]
+            # }
             funcsSens = {
-                ('obj', 'Qhvac') : (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
-                ('obj', 'ms_dot') : (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
-                ('obj', 'T_sa') : (2*dot(self.H, self.uOpt) + 2*self.F)[2::3],
-                ('hvac_con', 'Qhvac') : np.diag(np.ones(self.horiz_len)),
-                ('hvac_con', 'ms_dot') : -1*np.diag(self.uOpt[2::3,0] \
-                    - self.truth_model.T_z.flatten()),
-                ('hvac_con', 'T_sa') : np.diag(-1*np.array(self.uOpt[1::3,0])),
-                ('T_building_con', 'Qhvac') : self.My[0::3, 0::3],
-                ('T_building_con', 'ms_dot') : self.My[0::3, 1::3],
-                ('T_building_con', 'T_sa') : self.My[0::3, 2::3]
+                'obj': {
+                    'Qhvac': (2*dot(self.H, self.uOpt) + 2*self.F)[0::3],
+                    'ms_dot': (2*dot(self.H, self.uOpt) + 2*self.F)[1::3],
+                    'T_sa': (2*dot(self.H, self.uOpt) + 2*self.F)[2::3]
+                },
+                'hvac_con': {
+                    'Qhvac': np.eye(self.horiz_len, self.horiz_len),
+                    'ms_dot': -1*np.diag(self.uOpt[2::3,0] - self.truth_model.T_z.flatten()),
+                    'T_sa': np.diag(-1*np.array(self.uOpt[1::3,0]))
+                },
+                'T_building_con': {
+                    'Qhvac': self.My[0::3, 0::3],
+                    'ms_dot': self.My[0::3, 1::3],
+                    'T_sa': self.My[0::3, 2::3]
+                }
             }
 
         #     #  ('con1', 'Qhvac') : np.ones(5)*1.0,
