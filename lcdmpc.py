@@ -598,7 +598,7 @@ class subsystem():
         # np.fill_diagonal(a, a.diagonal() / c)
         
         # print(self.idn)
-        if self.idn == 0:
+        if self.idn == 0 or self.idn == 1 or self.idn == 2:# or self.idn == 3 or self.idn == 4 or self.idn == 5:
             # funcsSens = {
             #     ('obj', 'bldg_Prefs') : (2*dot(self.H, self.uOpt) + 2*self.F)
             # }
@@ -758,15 +758,16 @@ class subsystem():
         # print('shape of Mz: ', np.shape(self.Mz))
         # print('shape of Psi: ', np.shape(self.Psi))
         # print('term4: ', 0.5*dot(tp(self.Nz), self.Psi))
-        # print('self.idn: ', self.idn)
+        print('self.idn: ', self.idn)
 
-        # print('a: ', dot(tp(self.My), self.Q))
-        # print('b: ', dot(self.Fy, self.x0))
-        # print('c: ', dot(self.Ny, self.V))
-        # print('d: ', dot(self.Py, self.D - np.tile(
-        #             self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
-        #         )))
-        # print('e: ', self.refs)
+        print('a: ', np.shape(dot(tp(self.My), self.Q)))
+        print('b: ', np.shape(dot(self.Fy, self.x0)))
+        print('c: ', np.shape(dot(self.Ny, self.V)))
+        print('d: ', np.shape(dot(self.Py, self.D - np.tile(
+                    self.control_model.Bd_mean_inputs, (self.horiz_len, 1)
+                ))))
+        print('e: ', np.shape(self.refs))
+        # print(np.shape(self.Fy))
 
 
         self.F = dot(
@@ -853,6 +854,11 @@ class subsystem():
                 # print('values: ', obj.subsystems[upstream].Z)
                 # print('subvalues: ', obj.subsystems[upstream].Z[idx::idx_range])
                 # lkj
+                # print('idn: ', self.idn)
+                # print(obj.subsystems[upstream].Z[idx::idx_range])
+                # print(self.V[i::self.control_model.num_upstream])
+                # print(np.shape(self.V))
+                # print(np.shape(obj.subsystems[upstream].Z))
                 self.V[i::self.control_model.num_upstream] = obj.subsystems[upstream].Z[idx::idx_range]
                 # print('self.V: ', self.V)
                 # print("=========================")
@@ -1110,6 +1116,8 @@ class subsystem():
         # print('dot(Cy, Bu): ', dot(self.Cy, self.Bu))
         # print('Mytmp0: ', Mytmp0)
         # print('idn:', self.idn)
+        # print(self.Cy)
+        # print(self.Bu)
         Mytmp = np.hstack((dot(self.Cy, self.Bu), Mytmp0))
         # print('shape Mytmp: ', np.shape(Mytmp))
         for i in range(self.horiz_len - 1):
