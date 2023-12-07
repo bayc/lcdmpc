@@ -82,7 +82,7 @@ class grid_aggregator:
         self.Dzd_lin = np.zeros((self.num_downstream, 1))
 
     def process_Q(self, Q):
-        Q = np.eye(np.shape(Q)[0]) * 1.0e0 # -7 weight for individual prefs
+        Q = np.eye(np.shape(Q)[0]) * 1.0e1 # -7 weight for individual prefs
         # for i in np.arange(2, len(Q), self.num_downstream + 1):
         #     # Q[i] = np.zeros(len(Q))
         #     Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office

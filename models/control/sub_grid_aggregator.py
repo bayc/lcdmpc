@@ -53,6 +53,7 @@ class sub_grid_aggregator:
         )
         # print(np.shape(self.Dyu))
         # print('!!!!!!!!!!!!!!!!!!!!!!!!!!', self.Dyu)
+        # print(np.shape(self.Dyu))
         # print('num downstream: ', self.num_downstream)
         # lkj
 
@@ -104,10 +105,12 @@ class sub_grid_aggregator:
         # Q[5, 5] = 5.0*1e-7
         # Q[6, 6] = 5.0*1e-7
         # Q[7, 7] = 5.0*1e-7
-        for i in range(self.horiz_len):
-            Q[i*self.num_downstream, i*self.num_downstream] = 1.0
-            for j in range(self.num_bldgs_downstream):
-                Q[i*self.num_downstream + (j + 1), i*self.num_downstream + (j + 1)] = 5.0*1e-7
+
+        # for i in range(self.horiz_len):
+        #     Q[i*self.num_downstream, i*self.num_downstream] = 1.0
+        #     for j in range(self.num_bldgs_downstream):
+        #         Q[i*self.num_downstream + (j + 1), i*self.num_downstream + (j + 1)] = 1.0 # 5.0*1e-7
+        
         # Q[4, 4] = 1.0*1e-10
         # Q[5, 5] = 1.0*1e-10
         # print(Q)
@@ -123,7 +126,17 @@ class sub_grid_aggregator:
         #     Q[i] = np.zeros(len(Q))
         # print('#########: ', Q)
         # lkj
-        return Q*1.0e2
+        Q = np.eye(np.shape(Q)[0]) * 1.0e0 # -7 weight for individual prefs
+        # for i in np.arange(2, len(Q), self.num_downstream + 1):
+        #     # Q[i] = np.zeros(len(Q))
+        #     Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
+        # for i in np.arange(3, len(Q), self.num_downstream + 1):
+        #     # Q[i] = np.zeros(len(Q))
+        #     Q[i, i] = 3.0*1e0 # -7, 0 weight for medium office
+        for i in np.arange(0, len(Q), self.num_downstream):
+            # Q[i] = np.zeros(len(Q))
+            Q[i, i] = 1.0e1 # 10.0, -2, 0 weight for bulk ref
+        return Q*1.0e0#e2
 
     def process_S(self, S):
         S = S
